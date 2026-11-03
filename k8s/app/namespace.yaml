@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rush-hour
+  labels:
+    # Kubernetes rejects any Pod here that doesn't meet its strictest security standard.
+    pod-security.kubernetes.io/enforce: restricted

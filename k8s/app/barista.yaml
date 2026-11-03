@@ -1,0 +1,48 @@
+# The baristas: pull orders from the line and make them. No Service, because
+# nothing connects to them. They reach out to Redis for work.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: barista
+  namespace: rush-hour
+  labels:
+    app: barista
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: barista
+  template:
+    metadata:
+      labels:
+        app: barista
+    spec:
+      enableServiceLinks: false
+      # Time to finish the current drink after SIGTERM, before a forced kill.
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: barista
+          image: rush-hour-barista:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: REDIS_URL
+              value: redis://redis:6379/0
+            - name: PREP_SECONDS
+              value: "3"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 96Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

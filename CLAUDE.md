@@ -88,7 +88,7 @@ Kubernetes cluster (k3s)
 7. After v1: the "later" lessons, GitOps (Argo CD).
 
 ## Where we left off (update at the end of each session)
-- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Next: build roadmap step 1 once the plan is approved.
+- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Step 1, slices 1 and 2 are done: the register, Redis, and baristas run in the cluster, with crash recovery tested. Next: slice 3 (k6 rush and `scripts/up.ps1`). Before AWS: add a NetworkPolicy for Redis.
 
 ## Conventions
 - Python 3, small modules, type hints, logging (not print).
