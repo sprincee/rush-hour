@@ -1,0 +1,49 @@
+# One rush. A Job runs to completion and stops, unlike a Deployment.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rush
+  namespace: rush-load
+spec:
+  backoffLimit: 0 # A failed rush doesn't automatically send another one.
+  activeDeadlineSeconds: 360 # Hard stop, whatever happens inside.
+  ttlSecondsAfterFinished: 3600 # Clean up an hour after finishing.
+  template:
+    metadata:
+      labels:
+        app: rush
+    spec:
+      restartPolicy: Never
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 12345
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: k6
+          image: grafana/k6:2.3.0
+          args: ["run", "--quiet", "/scripts/rush.js"]
+          env:
+            - name: K6_NO_USAGE_REPORT
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: rush-script

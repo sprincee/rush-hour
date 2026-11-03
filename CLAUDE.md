@@ -76,7 +76,7 @@ Kubernetes cluster (k3s)
 - Local cluster on the laptop with k3d (runs k3s in Docker, matching the planned AWS host). Windows, PowerShell, VS Code.
 - Services run in the cluster from day one; `.venv` is for editing and tests.
 - Python 3.13 venv in `.venv`.
-- The whole system must run locally with one documented command before anything goes to AWS.
+- The whole system runs locally with `.\scripts\up.ps1`. Send a rush with `.\scripts\rush.ps1`.
 
 ## Roadmap
 1. Local cluster with register, line, and baristas; one rush works end to end.
@@ -88,7 +88,7 @@ Kubernetes cluster (k3s)
 7. After v1: the "later" lessons, GitOps (Argo CD).
 
 ## Where we left off (update at the end of each session)
-- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Step 1, slices 1 and 2 are done: the register, Redis, and baristas run in the cluster, with crash recovery tested. Next: slice 3 (k6 rush and `scripts/up.ps1`). Before AWS: add a NetworkPolicy for Redis.
+- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Roadmap step 1 is done: one command brings up the system, and a 50-order rush completes even with a barista killed partway through. Next: step 2 (Prometheus + Grafana), starting with the observability footprint decision. Before AWS: add a NetworkPolicy for Redis.
 
 ## Conventions
 - Python 3, small modules, type hints, logging (not print).

@@ -1,0 +1,88 @@
+# The load generator lives in its own namespace, so a quota can cap it without
+# touching the shop.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rush-load
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: rush-load-quota
+  namespace: rush-load
+spec:
+  hard:
+    pods: "2"
+    count/jobs.batch: "2"
+    requests.cpu: 500m
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 512Mi
+---
+# The rush itself. Its size is fixed here on purpose, so nothing can request a bigger one.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rush-script
+  namespace: rush-load
+data:
+  rush.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { Counter, Trend } from 'k6/metrics';
+
+    const REGISTER = 'http://register.rush-hour.svc.cluster.local';
+    const ORDERS = 50;
+    const ARRIVAL_WINDOW_SECONDS = 10; // Customers arrive over this long.
+    const POLL_SECONDS = 2; // Each customer asks "is my drink ready?" this often.
+    const GIVE_UP_SECONDS = 240;
+    const MENU = ['latte', 'cappuccino', 'drip'];
+
+    const drinkWait = new Trend('drink_wait_seconds');
+    const ordersReady = new Counter('orders_ready');
+    const ordersNotReady = new Counter('orders_not_ready');
+
+    export const options = {
+      scenarios: {
+        rush: {
+          executor: 'per-vu-iterations', // One virtual customer places one order.
+          vus: ORDERS,
+          iterations: 1,
+          maxDuration: '5m',
+        },
+      },
+      // Failing any of these makes k6 exit with an error, which fails the Job.
+      thresholds: {
+        orders_ready: [`count==${ORDERS}`],
+        checks: ['rate==1'],
+      },
+    };
+
+    export default function () {
+      sleep(((__VU - 1) * ARRIVAL_WINDOW_SECONDS) / ORDERS);
+
+      const placed = http.post(
+        `${REGISTER}/orders`,
+        JSON.stringify({ item: MENU[__VU % MENU.length], customer: `rush-${__VU}` }),
+        { headers: { 'Content-Type': 'application/json' }, timeout: '10s' },
+      );
+      if (!check(placed, { 'order accepted': (r) => r.status === 202 })) {
+        ordersNotReady.add(1);
+        return;
+      }
+
+      const orderId = placed.json('order_id');
+      const startedAt = Date.now();
+      while ((Date.now() - startedAt) / 1000 < GIVE_UP_SECONDS) {
+        sleep(POLL_SECONDS);
+        const ticket = http.get(`${REGISTER}/orders/${orderId}`, { timeout: '10s' });
+        if (ticket.status === 200 && ticket.json('status') === 'ready') {
+          drinkWait.add((Date.now() - startedAt) / 1000);
+          ordersReady.add(1);
+          return;
+        }
+      }
+      ordersNotReady.add(1);
+    }
