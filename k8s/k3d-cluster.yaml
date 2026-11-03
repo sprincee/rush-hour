@@ -1,0 +1,14 @@
+# Local Rush Hour cluster.
+# Create:  k3d cluster create --config k8s/k3d-cluster.yaml
+# Delete:  k3d cluster delete rush-hour
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: rush-hour
+servers: 1 # runs the control plane: the part that decides what runs where
+agents: 2 # worker nodes: the machines your containers run on
+image: rancher/k3s:v1.35.5-k3s1 # pinned so every rebuild gets the same version
+kubeAPI: # the door kubectl uses to reach the cluster
+  host: 127.0.0.1 # the address written into your kubeconfig
+  hostIP: 127.0.0.1 # listen on this laptop only, never on the network
+  hostPort: "6445" # fixed port, so it doesn't change on each rebuild

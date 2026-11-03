@@ -45,17 +45,22 @@ Lesson site (static, S3 + CloudFront)
                                   -> in-cluster load generator (k6 Job, capped)
 Kubernetes cluster (k3s)
    register   order API (Python)             accepts orders
-   line       Redis list                     the queue
+   line       Redis Streams                  the queue
    baristas   worker Deployment (Python)     simulated prep times; scales with the line
    pastry     Redis cache                    grab-and-go items skip the line
    Prometheus + Grafana                      metrics; public read-only panels for the lessons
 ```
 
+### Decided
+- The line uses Redis Streams: built-in crash recovery, batched reads, and direct KEDA support.
+- The course is an interactive browser game built as one coffee shop with 12 levers, not 12 separate mini-games.
+- Learners play in a browser simulator, freely and with no waiting line. The cluster handles real runs and checks the simulator. Full design: `docs/design.md`.
+
 ### Open decisions
 - Autoscaling: CPU-based HPA vs queue-length scaling with KEDA (queue length is the better lesson: "more people in line, more baristas").
 - Observability footprint: full kube-prometheus-stack vs a lighter Prometheus + Grafana install (memory matters on a small node).
 - How lessons show live data: embedded public Grafana panels vs periodic snapshots.
-- Hosting: local only until launch; then a single t4g.small/medium (on-demand or spot) running k3s.
+- Hosting: local only until launch; then a single t4g.small/medium (on-demand or spot) running k3s. About $17/month always-on is acceptable to the owner; decide between that and waking on demand at step 4.
 - Deployment: plain manifests/Helm first; GitOps (Argo CD) later.
 - Lesson site generator: reuse the Worth Learning approach (Python + Jinja2, no JavaScript) unless a lesson truly needs it.
 
@@ -76,14 +81,14 @@ Kubernetes cluster (k3s)
 ## Roadmap
 1. Local cluster with register, line, and baristas; one rush works end to end.
 2. Prometheus + Grafana: queue length, orders/sec, wait time, barista count, batch size.
-3. Group A (lessons 1-4: async, queue, priority, batching) written and wired to live panels.
+3. Browser simulator, proven first with lesson 2; then Group A (lessons 1-4: async, queue, priority, batching) written and wired to live panels.
 4. Terraform for the AWS host; deploy; guardrails verified. Launch Group A + LinkedIn post.
 5. Group B (lessons 5-8: autoscaling, rate limiting, backpressure, cache). Post.
 6. Group C (lessons 9-12: idempotency, retries, health checks, graceful degradation). Post.
 7. After v1: the "later" lessons, GitOps (Argo CD).
 
 ## Where we left off (update at the end of each session)
-- Session 1 (2026-11-03): chose k3d and scaffolded the repo. Next: install k3d, create the empty cluster, then design the register, line, and baristas.
+- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Next: build roadmap step 1 once the plan is approved.
 
 ## Conventions
 - Python 3, small modules, type hints, logging (not print).
