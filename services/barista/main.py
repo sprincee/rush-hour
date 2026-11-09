@@ -9,6 +9,7 @@ import time
 from types import FrameType
 
 import redis
+from prometheus_client import Counter, Histogram, start_http_server
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -29,8 +30,30 @@ RECLAIM_EVERY_SECONDS = 5
 # Must be longer than any drink, or we'd take orders from baristas still working.
 RECLAIM_IDLE_MS = 30_000
 MAX_DELIVERIES = 3
+METRICS_PORT = 9100
 
 Order = tuple[str, dict[str, str]]
+
+# Buckets run from "almost no wait" to the rush's 240-second give-up point.
+WAIT_BUCKETS = (1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 120, 180, 240)
+ORDERS_COMPLETED = Counter("rush_orders_completed", "Drinks finished", ["item"])
+# Start at 0. Otherwise a counter first appears at 1, and Prometheus misses that increase.
+for menu_item in ("latte", "cappuccino", "drip"):
+    ORDERS_COMPLETED.labels(item=menu_item)
+ORDERS_RECLAIMED = Counter(
+    "rush_orders_reclaimed", "Orders taken over from a barista who stopped responding"
+)
+ORDERS_REMADE = Counter("rush_orders_remade", "Orders moved to the remake shelf")
+LINE_WAIT = Histogram(
+    "rush_order_line_wait_seconds",
+    "Time from placing an order until a barista first started it",
+    buckets=WAIT_BUCKETS,
+)
+TOTAL_WAIT = Histogram(
+    "rush_order_total_wait_seconds",
+    "Time from placing an order until it was ready",
+    buckets=WAIT_BUCKETS,
+)
 
 stop_requested = threading.Event()
 
@@ -96,6 +119,7 @@ def send_to_remake_shelf(r: redis.Redis, message_id: str, order_id: str, deliver
     pipe.xack(LINE_STREAM, GROUP, message_id)
     pipe.xdel(LINE_STREAM, message_id)
     pipe.execute()
+    ORDERS_REMADE.inc()
     logger.error("Order %s moved to the remake shelf after %d deliveries", order_id, deliveries)
 
 
@@ -103,7 +127,7 @@ def make_drink(r: redis.Redis, message_id: str, fields: dict[str, str], reclaime
     order_id = fields.get("order_id")
     key = f"order:{order_id}"
 
-    status = r.hget(key, "status")
+    status, created_at = r.hmget(key, "status", "created_at")
     if status is None or status == "ready":
         logger.warning("Order %s is expired or already made; removing it", order_id)
         remove_from_line(r, message_id)
@@ -114,7 +138,12 @@ def make_drink(r: redis.Redis, message_id: str, fields: dict[str, str], reclaime
         send_to_remake_shelf(r, message_id, order_id, deliveries)
         return
 
-    r.hset(key, mapping={"status": "making", "barista": BARISTA, "started_at": time.time()})
+    started_at = time.time()
+    r.hset(key, mapping={"status": "making", "barista": BARISTA, "started_at": started_at})
+    if reclaimed:
+        ORDERS_RECLAIMED.inc()
+    else:
+        LINE_WAIT.observe(started_at - float(created_at))
     logger.info("Making order %s: %s (delivery %d)", order_id, fields.get("item"), deliveries)
     time.sleep(PREP_SECONDS)
 
@@ -131,6 +160,8 @@ def make_drink(r: redis.Redis, message_id: str, fields: dict[str, str], reclaime
     pipe.xack(LINE_STREAM, GROUP, message_id)
     pipe.xdel(LINE_STREAM, message_id)
     pipe.execute()
+    ORDERS_COMPLETED.labels(item=fields.get("item", "unknown")).inc()
+    TOTAL_WAIT.observe(time.time() - float(created_at))
     logger.info("Order %s is ready", order_id)
 
 
@@ -185,6 +216,7 @@ def main() -> None:
         socket_timeout=5,
     )
 
+    start_http_server(METRICS_PORT)  # What Prometheus reads every few seconds.
     logger.info("%s clocked in; drinks take %.1fs", BARISTA, PREP_SECONDS)
     run_shift(r)
     clock_out(r)

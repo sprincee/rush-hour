@@ -9,7 +9,7 @@ We force-deleted a barista Pod while it was making a latte, to test crash recove
 ## Timeline
 | Time after kill | What happened |
 |---|---|
-| 0s | The Pod was force-deleted, with no chance to finish the drink |
+| 0s | The Pod was force-deleted just after the drink started, leaving too little time to finish it |
 | 8s | The order still showed `making` under the dead barista, and Redis listed it as pending |
 | About 35s | Another barista reclaimed the order (delivery 2) |
 | 38.9s | The order was marked `ready` by the new barista |
@@ -27,6 +27,9 @@ We force-deleted a barista Pod while it was making a latte, to test crash recove
 - A crashed barista's name stays in the Redis consumer group. It's harmless and small, and a Redis restart clears it. Normal shutdowns remove the name.
 - The customer sees `making` for the whole recovery period, under a barista who no longer exists. Lesson 12 is a natural place to revisit this.
 - Baristas have no liveness probe yet, so one that hangs without crashing wouldn't be restarted. Its order would still be reclaimed. Lesson 11 should cover this.
+
+## Correction
+A force delete isn't an instant kill. In a later rush using `-KillBarista`, no order needed rescuing, most likely because that barista finished its drink before it stopped. To test a rescue reliably, delete the Pod right after an order shows `making`.
 
 ## Takeaways
 - Choosing the abandoned-order timeout is a trade-off. Too short and working baristas lose their orders, which duplicates drinks. Too long and customers wait longer after a crash.

@@ -61,6 +61,8 @@ kind: Service
 metadata:
   name: register
   namespace: rush-hour
+  labels:
+    app: register
 spec:
   type: ClusterIP
   selector:

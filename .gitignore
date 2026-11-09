@@ -32,3 +32,6 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Personal learning notes
+Notes.md

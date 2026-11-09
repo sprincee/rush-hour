@@ -64,6 +64,30 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+        # A sidecar: a helper container in the same Pod. It reads Redis over
+        # localhost and translates what it finds into metrics.
+        - name: exporter
+          image: oliver006/redis_exporter:v1.96.0
+          env:
+            - name: REDIS_ADDR
+              value: redis://localhost:6379
+            - name: REDIS_EXPORTER_CHECK_STREAMS
+              value: "line:orders"
+          ports:
+            - name: metrics
+              containerPort: 9121
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 48Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
       volumes:
         - name: data
           emptyDir:
@@ -75,6 +99,8 @@ kind: Service
 metadata:
   name: redis
   namespace: rush-hour
+  labels:
+    app: redis
 spec:
   type: ClusterIP
   selector:
@@ -83,3 +109,6 @@ spec:
     - name: redis
       port: 6379
       targetPort: redis
+    - name: metrics
+      port: 9121
+      targetPort: metrics

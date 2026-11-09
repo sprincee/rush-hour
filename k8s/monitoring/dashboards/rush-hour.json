@@ -1,0 +1,163 @@
+{
+  "uid": "rush-hour",
+  "title": "Rush Hour",
+  "description": "The live coffee shop: who's in line, how fast drinks go out, and who's on shift.",
+  "tags": ["rush-hour"],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Waiting in line now",
+      "description": "Orders no barista has started yet.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "options": { "colorMode": "none", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "text" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(redis_stream_group_lag{stream=\"line:orders\",group=\"baristas\"})", "instant": true }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Baristas on shift",
+      "description": "Barista Pods that are running and available.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "options": { "colorMode": "none", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "text" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(kube_deployment_status_replicas_available{namespace=\"rush-hour\",deployment=\"barista\"})", "instant": true }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Drinks made, last 15 min",
+      "description": "An estimate. Counts from a crashed barista's last few seconds can be missed.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "options": { "colorMode": "none", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "text" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "round(sum(increase(rush_orders_completed_total[15m])))", "instant": true }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Orders rescued, last 15 min",
+      "description": "Orders taken over after their barista stopped responding.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "options": { "colorMode": "none", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "text" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "round(sum(increase(rush_orders_reclaimed_total[15m]))) or vector(0)", "instant": true }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "The line",
+      "description": "Waiting: no barista has started it. Being made: a barista has it, or it's waiting to be rescued.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "lineInterpolation": "linear", "spanNulls": true }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Waiting" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }] },
+          { "matcher": { "id": "byName", "options": "Being made" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#d95926" } }] }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(redis_stream_group_lag{stream=\"line:orders\",group=\"baristas\"})", "legendFormat": "Waiting" },
+        { "refId": "B", "expr": "sum(redis_stream_group_messages_pending{stream=\"line:orders\",group=\"baristas\"})", "legendFormat": "Being made" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Orders per second",
+      "description": "When orders come in faster than drinks go out, the line grows. Averaged over 30 seconds.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 2,
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "lineInterpolation": "linear", "spanNulls": true }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Orders in" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }] },
+          { "matcher": { "id": "byName", "options": "Drinks out" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#d95926" } }] }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(rush_orders_accepted_total[30s]))", "legendFormat": "Orders in" },
+        { "refId": "B", "expr": "sum(rate(rush_orders_completed_total[30s]))", "legendFormat": "Drinks out" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Time waiting in line",
+      "description": "How long customers wait before a barista starts their order. 95th percentile: 95% of customers waited less than this. Estimated from histogram buckets over 1 minute.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 13 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "min": 0,
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "lineInterpolation": "linear", "spanNulls": false }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Typical customer (median)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }] },
+          { "matcher": { "id": "byName", "options": "Unlucky customer (95th percentile)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#d95926" } }] }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(rush_order_line_wait_seconds_bucket[1m])))", "legendFormat": "Typical customer (median)" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(rush_order_line_wait_seconds_bucket[1m])))", "legendFormat": "Unlucky customer (95th percentile)" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Baristas on shift",
+      "description": "Dips when a barista crashes, and recovers when Kubernetes replaces them.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 13 },
+      "options": { "legend": { "showLegend": false }, "tooltip": { "mode": "single" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "#3987e5" },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "lineInterpolation": "stepAfter", "spanNulls": true, "axisSoftMax": 3 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(kube_deployment_status_replicas_available{namespace=\"rush-hour\",deployment=\"barista\"})", "legendFormat": "Baristas" }
+      ]
+    }
+  ]
+}

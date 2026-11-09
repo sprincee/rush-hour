@@ -2,7 +2,8 @@
 .SYNOPSIS
     Sends one fixed rush of 50 orders and reports whether every order got made.
 .PARAMETER KillBarista
-    Force-kills one barista partway through, to test crash recovery.
+    Force-kills one barista partway through. If it finishes its drink first, no
+    order needs rescuing, so watch "Orders rescued" on the dashboard.
 .EXAMPLE
     .\scripts\rush.ps1
 .EXAMPLE

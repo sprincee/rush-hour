@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    # Not "restricted" like the shop: node-exporter needs access to the host to
+    # read machine metrics. Keeping it here means the shop's namespace stays strict.
+    pod-security.kubernetes.io/enforce: privileged

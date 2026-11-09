@@ -14,6 +14,8 @@ $ClusterName = 'rush-hour'
 $Context = "k3d-$ClusterName"
 $Root = Split-Path -Parent $PSScriptRoot
 $Services = @('register', 'barista')
+$MonitoringRepo = 'https://prometheus-community.github.io/helm-charts'
+$MonitoringVersion = '92.17.1'
 
 function Invoke-Step {
     param([string]$What, [scriptblock]$Action)
@@ -32,7 +34,7 @@ function Get-ImageId {
     return $id
 }
 
-foreach ($tool in 'docker', 'k3d', 'kubectl') {
+foreach ($tool in 'docker', 'k3d', 'kubectl', 'helm') {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
         Write-Host "Missing '$tool'. Install it, then open a new terminal." -ForegroundColor Red
         exit 1
@@ -71,8 +73,28 @@ $images = $Services | ForEach-Object { "rush-hour-${_}:dev" }
 Invoke-Step 'Loading images into the cluster' { k3d image import @images -c $ClusterName }
 
 Invoke-Step 'Creating the namespaces' {
-    kubectl --context $Context apply -f "$Root\k8s\app\namespace.yaml"
+    kubectl --context $Context apply -f "$Root\k8s\app\namespace.yaml" -f "$Root\k8s\monitoring\namespace.yaml"
 }
+
+# Generate the Grafana password once. It only ever lives in the cluster.
+$secret = kubectl --context $Context get secret grafana-admin -n monitoring --ignore-not-found -o name
+if (-not $secret) {
+    $bytes = New-Object byte[] 24
+    [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    $password = [Convert]::ToBase64String($bytes) -replace '[+/=]', 'x'
+    Invoke-Step 'Creating the Grafana password' {
+        kubectl --context $Context create secret generic grafana-admin -n monitoring `
+            --from-literal=admin-user=admin --from-literal=admin-password=$password
+    }
+}
+
+Invoke-Step 'Installing monitoring (the first run takes a few minutes)' {
+    helm upgrade --install monitoring kube-prometheus-stack `
+        --repo $MonitoringRepo --version $MonitoringVersion `
+        --kube-context $Context -n monitoring -f "$Root\k8s\monitoring\values.yaml" `
+        --wait --timeout 10m | Out-Null
+}
+Invoke-Step 'Loading the dashboard' { kubectl --context $Context apply -k "$Root\k8s\monitoring\dashboards" }
 Invoke-Step 'Deploying the shop' { kubectl --context $Context apply -f "$Root\k8s\app" }
 Invoke-Step 'Setting up the rush' { kubectl --context $Context apply -f "$Root\k8s\rush\setup.yaml" }
 
@@ -94,4 +116,5 @@ Write-Host 'Rush Hour is up.' -ForegroundColor Green
 kubectl --context $Context get pods -n rush-hour
 Write-Host ''
 Write-Host 'Send a rush:   .\scripts\rush.ps1'
+Write-Host 'Open Grafana:  .\scripts\grafana.ps1'
 Write-Host "Tear it down:  k3d cluster delete $ClusterName"

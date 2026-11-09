@@ -9,12 +9,14 @@ aren't built yet. See [the design](docs/design.md).
 
 ## Run it locally
 
-You need Docker Desktop (running), [k3d](https://k3d.io), and `kubectl`.
+You need Docker Desktop (running), [k3d](https://k3d.io), `kubectl`, and
+[Helm](https://helm.sh).
 
 ```powershell
 .\scripts\up.ps1                # Create or update the whole system
 .\scripts\rush.ps1              # Send a 50-order rush and check every order gets made
 .\scripts\rush.ps1 -KillBarista # Same, but kill a barista partway through
+.\scripts\grafana.ps1           # Open Grafana's "Rush Hour" dashboard tunnel and copy the password
 k3d cluster delete rush-hour    # Remove everything
 ```
 
@@ -34,6 +36,7 @@ seconds.
 | `services/` | Python services: the register (order API) and the baristas (workers) |
 | `k8s/app/` | Kubernetes config for the shop |
 | `k8s/rush/` | The k6 load generator, capped by a namespace quota |
+| `k8s/monitoring/` | Settings for Prometheus, Grafana, and Alertmanager, plus the dashboard |
 | `scripts/` | Commands to bring the system up and send a rush |
 | `lessons/` | Lesson content and the site generator |
 | `docs/` | The design and postmortems of what broke, including on purpose |

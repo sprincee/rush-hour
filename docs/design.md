@@ -91,3 +91,10 @@ Customer -> Register -> Line (Redis Streams) -> Barista -> "Order ready"
 - **FastAPI and uvicorn:** the register's API.
 - **redis-py:** talks to Redis from Python.
 - **prometheus-client:** exposes metrics.
+- **redis_exporter:** a small container next to Redis that reports line length and other Redis metrics.
+- **kube-prometheus-stack:** Prometheus, Grafana, Alertmanager, and ready-made Kubernetes dashboards.
+- **k6:** generates the fixed rush inside the cluster.
+
+## Hosting
+
+One server wakes on demand and shuts down when idle, within a hard maximum of $30/month. The simulator never depends on it. Lessons show a recorded real run while the server wakes.

@@ -1,0 +1,42 @@
+# Tell Prometheus what to scrape. The Prometheus Operator watches for these
+# objects and updates Prometheus's config. Every 5 seconds, because a rush is short.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: register
+  namespace: rush-hour
+spec:
+  selector:
+    matchLabels:
+      app: register
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis
+  namespace: rush-hour
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  endpoints:
+    - port: metrics
+      interval: 5s
+---
+# Baristas have no Service, so this watches their Pods directly.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: barista
+  namespace: rush-hour
+spec:
+  selector:
+    matchLabels:
+      app: barista
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 5s

@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import redis.asyncio as redis
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 from pydantic import BaseModel, Field
 
 logging.basicConfig(
@@ -20,6 +21,12 @@ logger = logging.getLogger("register")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 LINE_STREAM = "line:orders"
 ORDER_TTL_SECONDS = 3600  # Rushes are disposable, so finished tickets expire.
+
+ORDERS_ACCEPTED = Counter("rush_orders_accepted", "Orders added to the line", ["item"])
+# Start at 0. Otherwise a counter first appears at 1, and Prometheus misses that increase.
+for menu_item in ("latte", "cappuccino", "drip"):
+    ORDERS_ACCEPTED.labels(item=menu_item)
+ORDERS_REJECTED = Counter("rush_orders_rejected", "Valid orders the line couldn't take")
 
 
 class OrderRequest(BaseModel):
@@ -79,10 +86,12 @@ async def create_order(order: OrderRequest, request: Request) -> OrderAccepted:
         await pipe.execute()
     except redis.RedisError:
         logger.exception("Could not add order to the line")
+        ORDERS_REJECTED.inc()
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "The line is unavailable"
         ) from None
 
+    ORDERS_ACCEPTED.labels(item=order.item).inc()
     logger.info("Order %s accepted: %s", order_id, order.item)
     return OrderAccepted(order_id=order_id, status="queued")
 
@@ -100,6 +109,12 @@ async def get_order(order_id: str, request: Request) -> OrderStatus:
     if not ticket:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such order")
     return OrderStatus(order_id=order_id, **ticket)
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    """What Prometheus reads every few seconds."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/healthz")

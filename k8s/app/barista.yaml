@@ -34,6 +34,9 @@ spec:
               value: redis://redis:6379/0
             - name: PREP_SECONDS
               value: "3"
+          ports:
+            - name: metrics
+              containerPort: 9100
           resources:
             requests:
               cpu: 25m

@@ -14,7 +14,7 @@ It is also a portfolio project meant to show SRE and platform skills: Kubernetes
 - Talk before building: explain the next step and wait for my OK before multi-step work or anything with effects outside the repo (cloud resources, installs, scheduled tasks). "Ready to work" is not a go-ahead to execute the whole plan.
 - I make my own commits. Give me a commit message instead of committing.
 - Don't add dependencies or new services without telling me why.
-- Keep costs near $0. Flag anything that would cost money on AWS before creating it.
+- Keep costs near $0, with a hard maximum of $30/month. Flag anything that would cost money on AWS before creating it.
 
 ## The coffee shop map
 Several lessons come straight from how my real coffee shop runs (the box-of-coffee rule, batching milk). Use those real-world details in the lesson copy; they're what make this course different.
@@ -55,12 +55,12 @@ Kubernetes cluster (k3s)
 - The line uses Redis Streams: built-in crash recovery, batched reads, and direct KEDA support.
 - The course is an interactive browser game built as one coffee shop with 12 levers, not 12 separate mini-games.
 - Learners play in a browser simulator, freely and with no waiting line. The cluster handles real runs and checks the simulator. Full design: `docs/design.md`.
+- Observability uses kube-prometheus-stack, trimmed for k3s (`k8s/monitoring/values.yaml`). Measured peak on 2026-11-03: about 1 GiB across all Pods during a rush, not counting k3s itself. Single-node memory is still unmeasured, and a t4g.small (2 GB) looks too tight.
+- Hosting: local only until launch; then one server running k3s that wakes on demand, planned as a t4g.medium (roughly $3-5/month). It shuts down when idle, with a cooldown and a daily limit on hours. Lessons show a recorded real run while it wakes, and the simulator never depends on it. Confirm prices, memory, and start-up time at step 4.
 
 ### Open decisions
 - Autoscaling: CPU-based HPA vs queue-length scaling with KEDA (queue length is the better lesson: "more people in line, more baristas").
-- Observability footprint: full kube-prometheus-stack vs a lighter Prometheus + Grafana install (memory matters on a small node).
 - How lessons show live data: embedded public Grafana panels vs periodic snapshots.
-- Hosting: local only until launch; then a single t4g.small/medium (on-demand or spot) running k3s. About $17/month always-on is acceptable to the owner; decide between that and waking on demand at step 4.
 - Deployment: plain manifests/Helm first; GitOps (Argo CD) later.
 - Lesson site generator: reuse the Worth Learning approach (Python + Jinja2, no JavaScript) unless a lesson truly needs it.
 
@@ -68,7 +68,7 @@ Kubernetes cluster (k3s)
 - The public never sends traffic directly to the cluster. The button triggers a server-side rush with a fixed size and duration.
 - Global cooldown between rushes, plus a per-IP rate limit on the button.
 - Hard resource limits on every Pod; namespace quotas on the load generator.
-- AWS Budgets alerts at $1, $5, and $20 before anything is created.
+- AWS Budgets alerts at $1, $5, $20, and the $30 maximum before anything is created.
 - No managed Kubernetes (EKS control plane is ~$73/month). No NAT gateway. No load balancer service if a free option works.
 - Never leave the cloud cluster running without a reason; document how to tear it down and bring it back.
 
@@ -88,7 +88,10 @@ Kubernetes cluster (k3s)
 7. After v1: the "later" lessons, GitOps (Argo CD).
 
 ## Where we left off (update at the end of each session)
-- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Roadmap step 1 is done: one command brings up the system, and a 50-order rush completes even with a barista killed partway through. Next: step 2 (Prometheus + Grafana), starting with the observability footprint decision. Before AWS: add a NetworkPolicy for Redis.
+- Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Roadmap step 1 is done: one command brings up the system, and a 50-order rush completes even with a barista killed partway through. Roadmap step 2 is built: kube-prometheus-stack, shop metrics, `redis_exporter`, and the "Rush Hour" dashboard. Its queries were checked against live data, but the owner still needs to look at the dashboard itself in a browser. Batch size waits for lesson 4.
+- Next session: review the dashboard, then start step 3 by building the browser simulator with lesson 2.
+- Known items: `CPUThrottlingHigh` goes pending on low-limit containers (never fired, and rushes weren't slowed; revisit the limits). `-KillBarista` may not trigger a rescue, since the barista can sometimes finish its drink before it's killed. Before AWS: add a NetworkPolicy for Redis, build images for ARM as well, measure memory on a single node, and trim the metrics kept from the kubelet and API server.
+- `Notes.md` holds the owner's personal learning notes. It's gitignored.
 
 ## Conventions
 - Python 3, small modules, type hints, logging (not print).

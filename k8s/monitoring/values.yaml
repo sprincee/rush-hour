@@ -1,0 +1,106 @@
+# Settings for the kube-prometheus-stack Helm chart. The chart sets no resource
+# limits by default, so every container gets them here.
+
+# k3s runs these inside one process, so they can't be scraped separately and
+# would only show up as broken targets.
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    retention: 6h # Rushes are short, and this keeps memory low. No disk volume.
+    # Find monitoring targets and rules everywhere, not only ones labeled for this chart.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+
+alertmanager:
+  alertmanagerSpec:
+    retention: 24h
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+prometheusOperator:
+  # Webhooks only validate alert rules, and they add extra jobs and memory.
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
+  resources:
+    requests:
+      cpu: 20m
+      memory: 48Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 48Mi
+
+grafana:
+  admin:
+    existingSecret: grafana-admin # Created by scripts/up.ps1, never stored in git.
+    userKey: admin-user
+    passwordKey: admin-password
+  testFramework:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 48Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 96Mi
+
+prometheus-node-exporter:
+  # Docker Desktop's mounts make the host filesystem mount fail inside k3d.
+  hostRootFsMount:
+    enabled: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 48Mi
