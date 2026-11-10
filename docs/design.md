@@ -125,3 +125,27 @@ The game shows a shop clock running 60× faster than real time, so a 3-second dr
 ## Hosting
 
 One server wakes on demand and shuts down when idle, within a hard maximum of $30/month. The simulator never depends on it. Lessons show a recorded real run while the server wakes.
+
+## Shared settings and calibration
+
+`shop/config.json` holds the menu, prep times, rush size, arrival seed, and `timeScale` (60: one real second is one shop minute). Everything reads it:
+
+| Reader | What it uses |
+|---|---|
+| Game engine (`web/src/engine.mjs`) | Everything, in shop seconds |
+| Register | The menu, to reject anything not on it (`422`) |
+| Baristas | Prep time per drink, divided by `timeScale` (a 180-second latte takes 3 real seconds) |
+| k6 rush (`k8s/rush/rush.js`) | The arrival schedule |
+
+`web/src/arrivals.mjs` builds the arrival schedule from the seed. It has no imports, so the game and k6 load the same file and send exactly the same customers at the same moments. `scripts/up.ps1` stamps a hash of the settings on the register and barista Deployments, so they restart only when the settings change.
+
+**Calibration:** `.\scripts\rush.ps1 -Record` saves a real rush's exact order timings from Redis to `web/test/fixtures/real-rush.json`. `web/test/calibration.test.mjs` runs the game with the same design and fails if it drifts from the recording:
+
+| Check | Tolerance | First recording (2026-11-10, 2 baristas) |
+|---|---|---|
+| Longest wait | within 10% | real 54.8 min, game 54.8 min |
+| Last drink out | within 10% | real 64.8 min, game 64.7 min |
+| Average per-order wait difference | under 2 shop min | 0.04 min |
+| Peak queue | within 3 tickets | 41 and 41 |
+
+The tolerances were set before the first recording, to allow for network delay and the baristas' 2-second polling. Real results came in much closer. If the settings change, the test skips until a new recording is made, because comparing against an old recording would mean nothing.

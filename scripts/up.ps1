@@ -95,6 +95,12 @@ Invoke-Step 'Installing monitoring (the first run takes a few minutes)' {
         --wait --timeout 10m | Out-Null
 }
 Invoke-Step 'Loading the dashboard' { kubectl --context $Context apply -k "$Root\k8s\monitoring\dashboards" }
+# The menu and prep times, shared with the game. Pods read it as a file.
+Invoke-Step 'Loading the shop settings' {
+    kubectl --context $Context create configmap shop-config -n rush-hour `
+        --from-file=config.json="$Root\shop\config.json" --dry-run=client -o yaml |
+        kubectl --context $Context apply -f -
+}
 Invoke-Step 'Deploying the shop' { kubectl --context $Context apply -f "$Root\k8s\app" }
 Invoke-Step 'Setting up the rush' { kubectl --context $Context apply -f "$Root\k8s\rush\setup.yaml" }
 
@@ -102,6 +108,20 @@ Invoke-Step 'Setting up the rush' { kubectl --context $Context apply -f "$Root\k
 foreach ($service in $changed) {
     Invoke-Step "Restarting $service with its new image" {
         kubectl --context $Context rollout restart "deployment/$service" -n rush-hour
+    }
+}
+
+# Pods only read the settings when they start. Stamping a hash of the settings
+# onto each Deployment makes Kubernetes roll them only when the settings change.
+$configHash = (Get-FileHash "$Root\shop\config.json" -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
+$patchFile = Join-Path $env:TEMP 'rush-hour-config-patch.json'
+[IO.File]::WriteAllText($patchFile, "{`"spec`":{`"template`":{`"metadata`":{`"annotations`":{`"shop-config-hash`":`"$configHash`"}}}}}")
+foreach ($deployment in 'register', 'barista') {
+    $current = kubectl --context $Context get deployment $deployment -n rush-hour -o 'jsonpath={.spec.template.metadata.annotations.shop-config-hash}'
+    if ($current -ne $configHash) {
+        Invoke-Step "Giving $deployment the current shop settings" {
+            kubectl --context $Context patch deployment $deployment -n rush-hour --type merge --patch-file $patchFile
+        }
     }
 }
 

@@ -1,0 +1,162 @@
+// The shop engine: a discrete-event simulation of the coffee shop.
+//
+// Nothing here draws anything. The engine keeps a list of upcoming events
+// ("customer 12 arrives at 64s", "barista 2 finishes at 190s") and handles them
+// in time order. The game animates the results; tests check them directly.
+// The same design and settings always produce the same rush.
+// Settings come from shop/config.json, shared with the real cluster.
+
+import { buildSchedule, menuById, mulberry32 } from './arrivals.mjs';
+
+export const SAMPLE_EVERY = 15;
+
+/**
+ * Set up a rush without running it.
+ * @param {{baristas: number, rail: boolean, capacity: number}} design
+ *   capacity is the most tickets the rail holds. Use Infinity for no limit.
+ * @param {{config: object, look?: Function}} options
+ *   config is shop/config.json. look(customer, rand) lets the game add visual
+ *   details. It gets its own random sequence, so it can never change the rush.
+ */
+export function createRun(design, { config, look } = {}) {
+  if (!config) throw new Error('createRun needs the shop config');
+  const menu = menuById(config);
+  const shop = { ...config.rush, orderSeconds: config.register.orderSeconds };
+  const lookRand = mulberry32(config.rush.seed ^ 0x5bd1e995);
+  const customers = buildSchedule(config).map(a => {
+    const c = { id: a.id, item: a.item, arriveAt: a.at, state: 'outside', orderedAt: 0, readyAt: 0 };
+    if (look) look(c, lookRand);
+    return c;
+  });
+  const run = {
+    design, shop, menu,
+    t: 0, lastEventT: 0, customers, events: [], regQueue: [], ordering: null, cashierFrom: 0,
+    rail: [],
+    baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, reserved: null, startAt: 0, doneAt: 0, busyTime: 0 })),
+    cups: [], pops: [], served: 0, rejected: 0, longestWait: 0,
+    series: [[0, 0]], nextSample: SAMPLE_EVERY,
+    message: '', finished: false, logicDone: false,
+  };
+  customers.forEach(c => schedule(run, c.arriveAt, 'arrive', c));
+  return run;
+}
+
+function schedule(run, t, type, data) {
+  const e = { t, type, data };
+  const i = run.events.findIndex(x => x.t > t);
+  if (i < 0) run.events.push(e); else run.events.splice(i, 0, e);
+}
+
+/** Handle every event up to run.t. onEvent(kind, customer, extra) reports what happened. */
+export function processEvents(run, onEvent) {
+  while (run.events.length && run.events[0].t <= run.t) {
+    const e = run.events.shift();
+    run.lastEventT = e.t;
+    handle(run, e, onEvent);
+  }
+}
+
+function handle(run, e, onEvent) {
+  const t = e.t;
+  if (e.type === 'arrive') {
+    const c = e.data;
+    c.state = 'queue';
+    run.regQueue.push(c);
+    tryRegister(run, t, onEvent);
+  } else if (e.type === 'ordered') {
+    const c = e.data;
+    run.ordering = null; c.state = 'waiting'; c.orderedAt = t;
+    const ticket = { id: c.id, c, item: c.item };
+    if (!run.design.rail) {
+      // No queue: the order goes straight to the barista reserved for it.
+      const b = run.baristas.find(x => x.reserved === c);
+      b.reserved = null;
+      startDrink(run, b, ticket, t);
+    } else {
+      run.rail.push(ticket);
+      tryBaristas(run, t);
+    }
+    if (onEvent) onEvent('accepted', c, ticket);
+    tryRegister(run, t, onEvent);
+  } else if (e.type === 'drinkDone') {
+    const b = e.data, c = b.ticket.c;
+    b.busyTime += t - b.startAt;
+    b.ticket = null;
+    c.state = 'pickup'; c.readyAt = t;
+    run.served++;
+    run.longestWait = Math.max(run.longestWait, t - c.arriveAt);
+    if (onEvent) onEvent('done', c, b);
+    tryBaristas(run, t);
+    tryRegister(run, t, onEvent);
+  }
+}
+
+function reject(run, c, why, onEvent) {
+  c.state = 'walkout'; c.rejectedFor = why; run.rejected++;
+  if (onEvent) onEvent('rejected', c, why);
+}
+
+function tryRegister(run, t, onEvent) {
+  while (!run.ordering && run.regQueue.length) {
+    const c = run.regQueue.shift();
+    if (!run.design.rail) {
+      const free = run.baristas.find(b => !b.ticket && !b.reserved);
+      if (!free) { reject(run, c, 'noqueue', onEvent); continue; }
+      free.reserved = c;
+    } else if (run.rail.length >= run.design.capacity) {
+      reject(run, c, 'full', onEvent); continue;
+    }
+    c.state = 'ordering'; run.ordering = c; run.cashierFrom = t;
+    schedule(run, t + run.shop.orderSeconds, 'ordered', c);
+  }
+}
+
+function tryBaristas(run, t) {
+  for (const b of run.baristas) {
+    if (!b.ticket && !b.reserved && run.rail.length) startDrink(run, b, run.rail.shift(), t);
+  }
+}
+
+function startDrink(run, b, ticket, t) {
+  b.ticket = ticket; b.startAt = t; b.doneAt = t + run.menu[ticket.item].prep;
+  schedule(run, b.doneAt, 'drinkDone', b);
+}
+
+/** Record queue depth every SAMPLE_EVERY shop seconds, for the chart. */
+export function sample(run) {
+  while (!run.logicDone && run.nextSample <= run.t) {
+    run.series.push([run.nextSample / 60, run.rail.length]);
+    run.nextSample += SAMPLE_EVERY;
+  }
+  if (!run.logicDone && run.events.length === 0) {
+    run.logicDone = true;
+    run.series.push([run.lastEventT / 60, run.rail.length]);
+  }
+}
+
+/** Run a whole rush instantly. */
+export function completeRun(design, options) {
+  const run = createRun(design, options);
+  while (run.events.length) {
+    run.t = run.events[0].t;
+    sample(run);
+    processEvents(run, options && options.onEvent);
+  }
+  sample(run);
+  run.finished = true;
+  return run;
+}
+
+/** The numbers a debrief needs. Times are in shop minutes. */
+export function summarize(run) {
+  const busy = run.baristas.reduce((s, b) => s + b.busyTime, 0);
+  const end = Math.max(run.lastEventT, 1);
+  return {
+    served: run.served,
+    rejected: run.rejected,
+    longestWaitMin: run.longestWait / 60,
+    endMin: end / 60,
+    utilization: busy / (end * run.baristas.length),
+    peakQueue: Math.max(...run.series.map(p => p[1])),
+  };
+}

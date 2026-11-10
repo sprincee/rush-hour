@@ -1,5 +1,6 @@
 """A barista: takes orders from the line, makes them, and marks them ready."""
 
+import json
 import logging
 import os
 import signal
@@ -17,8 +18,23 @@ logging.basicConfig(
 logger = logging.getLogger("barista")
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-PREP_SECONDS = float(os.environ.get("PREP_SECONDS", "3"))
+SHOP_CONFIG = os.environ.get("SHOP_CONFIG", "/config/config.json")
 BARISTA = socket.gethostname()  # The Pod name, so every barista is unique.
+
+
+def load_prep_seconds(path: str) -> dict[str, float]:
+    """Real seconds per drink: the menu's shop time, sped up by timeScale.
+
+    Reads shop/config.json, the same file the game uses, so a 3-minute latte in
+    the game is a 3-second latte here.
+    """
+    with open(path, encoding="utf-8") as f:
+        config = json.load(f)
+    return {m["id"]: m["prepSeconds"] / config["timeScale"] for m in config["menu"]}
+
+
+PREP_SECONDS = load_prep_seconds(SHOP_CONFIG)
+SLOWEST_DRINK = max(PREP_SECONDS.values())
 
 LINE_STREAM = "line:orders"
 REMAKE_STREAM = "line:remake"
@@ -38,7 +54,7 @@ Order = tuple[str, dict[str, str]]
 WAIT_BUCKETS = (1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 120, 180, 240)
 ORDERS_COMPLETED = Counter("rush_orders_completed", "Drinks finished", ["item"])
 # Start at 0. Otherwise a counter first appears at 1, and Prometheus misses that increase.
-for menu_item in ("latte", "cappuccino", "drip"):
+for menu_item in PREP_SECONDS:
     ORDERS_COMPLETED.labels(item=menu_item)
 ORDERS_RECLAIMED = Counter(
     "rush_orders_reclaimed", "Orders taken over from a barista who stopped responding"
@@ -145,7 +161,7 @@ def make_drink(r: redis.Redis, message_id: str, fields: dict[str, str], reclaime
     else:
         LINE_WAIT.observe(started_at - float(created_at))
     logger.info("Making order %s: %s (delivery %d)", order_id, fields.get("item"), deliveries)
-    time.sleep(PREP_SECONDS)
+    time.sleep(PREP_SECONDS.get(fields.get("item", ""), SLOWEST_DRINK))
 
     # If Redis restarted mid-drink, the ticket is gone. Don't recreate half a ticket.
     if not r.exists(key):
@@ -217,7 +233,7 @@ def main() -> None:
     )
 
     start_http_server(METRICS_PORT)  # What Prometheus reads every few seconds.
-    logger.info("%s clocked in; drinks take %.1fs", BARISTA, PREP_SECONDS)
+    logger.info("%s clocked in; prep seconds by drink: %s", BARISTA, PREP_SECONDS)
     run_shift(r)
     clock_out(r)
     r.close()

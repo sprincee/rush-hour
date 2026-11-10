@@ -282,13 +282,15 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
   // design = { baristas, rail: boolean, capacity: number (Infinity for no limit) }
   function createRun(design, look) {
     const rand = mulberry32(SHOP.seed);
+    // Looks get their own random sequence, so drawing customers can never change the rush.
+    const lookRand = mulberry32(SHOP.seed ^ 0x5bd1e995);
     const gap = SHOP.windowSeconds / SHOP.customers;
     const customers = [];
     for (let i = 0; i < SHOP.customers; i++) {
       const p = rand();
       const item = p < 0.4 ? 'latte' : p < 0.7 ? 'cappuccino' : 'drip';
       const c = { id: i + 1, item, arriveAt: i * gap + rand() * gap * 0.85, state: 'outside', orderedAt: 0, readyAt: 0 };
-      if (look) look(c, rand);
+      if (look) look(c, lookRand);
       customers.push(c);
     }
     const run = {

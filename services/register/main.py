@@ -1,12 +1,12 @@
 """The register: takes orders, puts them in the line, and answers "is it ready?"."""
 
+import json
 import logging
 import os
 import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Literal
 
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, Response, status
@@ -21,16 +21,26 @@ logger = logging.getLogger("register")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 LINE_STREAM = "line:orders"
 ORDER_TTL_SECONDS = 3600  # Rushes are disposable, so finished tickets expire.
+SHOP_CONFIG = os.environ.get("SHOP_CONFIG", "/config/config.json")
+
+
+def load_menu(path: str) -> list[str]:
+    """The drinks on the menu, from shop/config.json (shared with the game)."""
+    with open(path, encoding="utf-8") as f:
+        return [m["id"] for m in json.load(f)["menu"]]
+
+
+MENU = load_menu(SHOP_CONFIG)
 
 ORDERS_ACCEPTED = Counter("rush_orders_accepted", "Orders added to the line", ["item"])
 # Start at 0. Otherwise a counter first appears at 1, and Prometheus misses that increase.
-for menu_item in ("latte", "cappuccino", "drip"):
+for menu_item in MENU:
     ORDERS_ACCEPTED.labels(item=menu_item)
 ORDERS_REJECTED = Counter("rush_orders_rejected", "Valid orders the line couldn't take")
 
 
 class OrderRequest(BaseModel):
-    item: Literal["latte", "cappuccino", "drip"]
+    item: str = Field(min_length=1, max_length=32)
     customer: str = Field(min_length=1, max_length=40)
 
 
@@ -68,6 +78,10 @@ app = FastAPI(title="Rush Hour register", lifespan=lifespan)
 @app.post("/orders", status_code=status.HTTP_202_ACCEPTED)
 async def create_order(order: OrderRequest, request: Request) -> OrderAccepted:
     """Accept an order. 202 means "you're in line", not "your drink is ready"."""
+    if order.item not in MENU:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Not on the menu. Try one of: {', '.join(MENU)}"
+        )
     order_id = uuid.uuid4().hex
     key = f"order:{order_id}"
     ticket = {

@@ -1,0 +1,17 @@
+{
+  "description": "Shop settings shared by the game, the baristas, and the k6 rush. Times are in shop seconds; the real cluster runs timeScale times faster.",
+  "timeScale": 60,
+  "rush": {
+    "customers": 50,
+    "windowSeconds": 600,
+    "seed": 20261103
+  },
+  "register": {
+    "orderSeconds": 8
+  },
+  "menu": [
+    { "id": "latte", "label": "Latte", "short": "LATTE", "prepSeconds": 180, "share": 0.4 },
+    { "id": "cappuccino", "label": "Cappuccino", "short": "CAPP", "prepSeconds": 150, "share": 0.3 },
+    { "id": "drip", "label": "Drip coffee", "short": "DRIP", "prepSeconds": 120, "share": 0.3 }
+  ]
+}

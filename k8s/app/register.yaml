@@ -29,6 +29,12 @@ spec:
           env:
             - name: REDIS_URL
               value: redis://redis:6379/0
+            - name: SHOP_CONFIG
+              value: /config/config.json
+          volumeMounts:
+            - name: shop-config
+              mountPath: /config
+              readOnly: true
           ports:
             - name: http
               containerPort: 8000
@@ -55,6 +61,11 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        # shop/config.json, loaded by scripts/up.ps1: the menu shared with the game.
+        - name: shop-config
+          configMap:
+            name: shop-config
 ---
 apiVersion: v1
 kind: Service

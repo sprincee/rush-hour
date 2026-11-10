@@ -32,8 +32,12 @@ spec:
           env:
             - name: REDIS_URL
               value: redis://redis:6379/0
-            - name: PREP_SECONDS
-              value: "3"
+            - name: SHOP_CONFIG
+              value: /config/config.json
+          volumeMounts:
+            - name: shop-config
+              mountPath: /config
+              readOnly: true
           ports:
             - name: metrics
               containerPort: 9100
@@ -49,3 +53,8 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        # shop/config.json, loaded by scripts/up.ps1: the menu and prep times shared with the game.
+        - name: shop-config
+          configMap:
+            name: shop-config

@@ -1,0 +1,9 @@
+{
+  "name": "rush-hour-web",
+  "private": true,
+  "type": "module",
+  "description": "The Rush Hour browser game. No dependencies: tests use Node's built-in runner.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
