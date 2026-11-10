@@ -22,13 +22,31 @@ Both modes read one shared settings file. A calibration test runs the same rush 
 
 ## Lesson format
 
-The player is the shift lead. Each lesson opens with the earlier levers already set, so it works on its own.
+Each lesson is 2-3 short levels. The player runs the morning shift: they design the system first, then run the rush, the way real systems should be designed before traffic arrives. Each lesson works on its own. The working mockup of lesson 2 is `lessons/mockups/order-line.html`.
 
-1. **Scene:** a moment anyone who has stood in a coffee line recognizes.
-2. **Struggle:** play the rush the naive way and watch it go wrong.
-3. **Lever:** make the fix and replay it against a goal.
-4. **Real:** run it on the cluster and watch the panels.
-5. **Translate:** connect the coffee words to the technical terms and the real code.
+Every level follows the same four phases:
+
+1. **Brief:** the situation, the goals, and a budget. Goals are SLOs in disguise, like "nobody waits more than 20 minutes".
+2. **Design:** pick the parts. Each part shows its coffee name and its system name, like "Ticket rail · Queue". Parts from later lessons appear as locked cards.
+3. **Run:** the design is locked while the rush plays. The player can pause and change speed, but not redesign.
+4. **Debrief:** which goals were met, the numbers in both languages (served = 200 OK, turned away = 503, longest wait = latency, workers busy = utilization), what happened and why, and a system design concept card.
+
+The **X-ray** toggle fades the shop into the same moment drawn as a system: the register becomes the API server, the rail becomes the queue, the baristas become workers, and pickup becomes the response. Every customer becomes a colored dot (a request), with "202", "503" and "200" pop-ups as events happen. The X-ray is on during design, so the player watches their architecture change.
+
+Levels are tuned with the engine so each one forces a real trade-off, with comfortable margins so a correct design clearly passes.
+
+### Lesson 2 levels
+
+| Level | Goal | Concept |
+|---|---|---|
+| 2.1 Nobody walks out | Serve all 50 within $40 | Queue: without one, even 4 baristas serve only 16 |
+| 2.2 Too long a wait | Serve everyone, nobody waits over 40 min, $60 | Throughput: a queue holds work, only workers do it (3 baristas: 34.4 min) |
+| 2.3 Know when to say no | Nobody waits over 20 min, turn away 25 or fewer, $60 | Bounded queue: with 3 baristas, rail sizes 13-20 pass |
+
+### Ideas for later lessons
+
+- **Lesson 4, batching:** steam milk for 2-3 drinks from one pitcher, so each drink costs less time and money. The first drink waits for the batch.
+- **Load balancing:** a second cashier opens when the line reaches the door.
 
 ## Lessons
 
@@ -80,6 +98,15 @@ Customer -> Register -> Line (Redis Streams) -> Barista -> "Order ready"
 - **Normal shutdown:** the barista finishes the current drink before exiting.
 - **Duplicate drinks:** crash recovery can occasionally make a drink twice. Lesson 9 covers this.
 - **Redis restart:** nothing is saved to disk, so a restart loses the line. This is acceptable because every rush is disposable.
+
+## Details from the real shop
+
+- Lattes take 2-3 minutes, depending on how complex they are.
+- Two baristas usually work the bar.
+- Orders reach the bar as printed tickets.
+- When the line reaches the door, a second cashier opens. This is a good story for load balancing: two registers splitting the line.
+
+The game shows a shop clock running 60× faster than real time, so a 3-second drink on the cluster reads as a 3-minute latte.
 
 ## Starting values
 
