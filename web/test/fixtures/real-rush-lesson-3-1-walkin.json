@@ -1,0 +1,340 @@
+{
+  "description": "One real rush on the local cluster, recorded by scripts/record-rush.ps1. Times are real Unix seconds.",
+  "recordedAt": "2026-11-11T19:15:03+00:00",
+  "rushId": "20261111141344",
+  "rush": "lesson-3-1",
+  "configHash": "40f6202d2f4be28e",
+  "design": {
+    "baristas": 3,
+    "rail": true,
+    "capacity": null,
+    "policy": "walkin",
+    "mobileEvery": 3
+  },
+  "orders": [
+    {
+      "id": 1,
+      "item": "cappuccino",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424461.4742029,
+      "startedAt": 1794424461.4866233,
+      "readyAt": 1794424463.988479
+    },
+    {
+      "id": 2,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424461.7968588,
+      "startedAt": 1794424461.8110597,
+      "readyAt": 1794424464.3124893
+    },
+    {
+      "id": 3,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424462.106796,
+      "startedAt": 1794424462.1230478,
+      "readyAt": 1794424465.1246836
+    },
+    {
+      "id": 4,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424462.5896008,
+      "startedAt": 1794424463.9914103,
+      "readyAt": 1794424466.9926503
+    },
+    {
+      "id": 5,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424463.1146023,
+      "startedAt": 1794424464.3141155,
+      "readyAt": 1794424466.8155346
+    },
+    {
+      "id": 6,
+      "item": "drip",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424463.362819,
+      "startedAt": 1794424479.644096,
+      "readyAt": 1794424481.6457534
+    },
+    {
+      "id": 7,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424463.7805183,
+      "startedAt": 1794424465.1270435,
+      "readyAt": 1794424468.1285558
+    },
+    {
+      "id": 8,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424464.1458313,
+      "startedAt": 1794424466.81818,
+      "readyAt": 1794424469.819793
+    },
+    {
+      "id": 9,
+      "item": "cappuccino",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424464.8186264,
+      "startedAt": 1794424481.6478083,
+      "readyAt": 1794424484.149188
+    },
+    {
+      "id": 10,
+      "item": "drip",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424465.221196,
+      "startedAt": 1794424466.994183,
+      "readyAt": 1794424468.9951725
+    },
+    {
+      "id": 11,
+      "item": "cappuccino",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424465.412479,
+      "startedAt": 1794424481.841034,
+      "readyAt": 1794424484.3425405
+    },
+    {
+      "id": 12,
+      "item": "cappuccino",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424465.9954038,
+      "startedAt": 1794424482.0114028,
+      "readyAt": 1794424484.5125756
+    },
+    {
+      "id": 13,
+      "item": "drip",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424466.4158247,
+      "startedAt": 1794424484.1517017,
+      "readyAt": 1794424486.153263
+    },
+    {
+      "id": 14,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424466.6925771,
+      "startedAt": 1794424468.1308541,
+      "readyAt": 1794424470.6321626
+    },
+    {
+      "id": 15,
+      "item": "drip",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424466.98342,
+      "startedAt": 1794424484.344611,
+      "readyAt": 1794424486.3460867
+    },
+    {
+      "id": 16,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424467.7380674,
+      "startedAt": 1794424468.9971068,
+      "readyAt": 1794424471.4986148
+    },
+    {
+      "id": 17,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424468.0556812,
+      "startedAt": 1794424484.5146868,
+      "readyAt": 1794424487.5160036
+    },
+    {
+      "id": 18,
+      "item": "drip",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424468.4456365,
+      "startedAt": 1794424469.8223255,
+      "readyAt": 1794424471.823962
+    },
+    {
+      "id": 19,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424468.6557553,
+      "startedAt": 1794424470.6338897,
+      "readyAt": 1794424473.635389
+    },
+    {
+      "id": 20,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424469.4066143,
+      "startedAt": 1794424471.5007288,
+      "readyAt": 1794424474.0023544
+    },
+    {
+      "id": 21,
+      "item": "drip",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424469.6596403,
+      "startedAt": 1794424471.826669,
+      "readyAt": 1794424473.8281603
+    },
+    {
+      "id": 22,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424470.1461127,
+      "startedAt": 1794424486.1566675,
+      "readyAt": 1794424489.1582265
+    },
+    {
+      "id": 23,
+      "item": "drip",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424470.4671874,
+      "startedAt": 1794424486.348009,
+      "readyAt": 1794424488.3495293
+    },
+    {
+      "id": 24,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424470.753425,
+      "startedAt": 1794424473.6386614,
+      "readyAt": 1794424476.639957
+    },
+    {
+      "id": 25,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424471.4349432,
+      "startedAt": 1794424487.5176454,
+      "readyAt": 1794424490.5192509
+    },
+    {
+      "id": 26,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424471.8688173,
+      "startedAt": 1794424488.3525991,
+      "readyAt": 1794424491.3542228
+    },
+    {
+      "id": 27,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424472.306817,
+      "startedAt": 1794424489.1603346,
+      "readyAt": 1794424492.161735
+    },
+    {
+      "id": 28,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424472.427127,
+      "startedAt": 1794424473.8304663,
+      "readyAt": 1794424476.831897
+    },
+    {
+      "id": 29,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424473.1567624,
+      "startedAt": 1794424474.0050461,
+      "readyAt": 1794424477.0062995
+    },
+    {
+      "id": 30,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424473.5068126,
+      "startedAt": 1794424476.6416152,
+      "readyAt": 1794424479.640794
+    },
+    {
+      "id": 31,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424473.9742465,
+      "startedAt": 1794424476.8351605,
+      "readyAt": 1794424479.334423
+    },
+    {
+      "id": 32,
+      "item": "drip",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424474.2258883,
+      "startedAt": 1794424477.0076928,
+      "readyAt": 1794424479.0065277
+    },
+    {
+      "id": 33,
+      "item": "drip",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424474.7706425,
+      "startedAt": 1794424490.5225515,
+      "readyAt": 1794424492.5237951
+    },
+    {
+      "id": 34,
+      "item": "latte",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424474.8946924,
+      "startedAt": 1794424479.0083966,
+      "readyAt": 1794424482.0095325
+    },
+    {
+      "id": 35,
+      "item": "cappuccino",
+      "channel": "walkin",
+      "status": "ready",
+      "createdAt": 1794424475.5326524,
+      "startedAt": 1794424479.3359764,
+      "readyAt": 1794424481.837608
+    },
+    {
+      "id": 36,
+      "item": "latte",
+      "channel": "mobile",
+      "status": "ready",
+      "createdAt": 1794424475.7881489,
+      "startedAt": 1794424491.356654,
+      "readyAt": 1794424494.3580072
+    }
+  ]
+}

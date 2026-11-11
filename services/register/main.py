@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Literal
 
 import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, Response, status
@@ -19,7 +20,8 @@ logging.basicConfig(
 logger = logging.getLogger("register")
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-LINE_STREAM = "line:orders"
+# Walk-in tickets print at the register; app orders print on their own printer.
+STREAMS = {"walkin": "line:walkin", "mobile": "line:mobile"}
 ORDER_TTL_SECONDS = 3600  # Rushes are disposable, so finished tickets expire.
 SHOP_CONFIG = os.environ.get("SHOP_CONFIG", "/config/config.json")
 
@@ -32,16 +34,18 @@ def load_menu(path: str) -> list[str]:
 
 MENU = load_menu(SHOP_CONFIG)
 
-ORDERS_ACCEPTED = Counter("rush_orders_accepted", "Orders added to the line", ["item"])
+ORDERS_ACCEPTED = Counter("rush_orders_accepted", "Orders added to the line", ["item", "channel"])
 # Start at 0. Otherwise a counter first appears at 1, and Prometheus misses that increase.
 for menu_item in MENU:
-    ORDERS_ACCEPTED.labels(item=menu_item)
+    for channel_name in STREAMS:
+        ORDERS_ACCEPTED.labels(item=menu_item, channel=channel_name)
 ORDERS_REJECTED = Counter("rush_orders_rejected", "Valid orders the line couldn't take")
 
 
 class OrderRequest(BaseModel):
     item: str = Field(min_length=1, max_length=32)
     customer: str = Field(min_length=1, max_length=40)
+    channel: Literal["walkin", "mobile"] = "walkin"
 
 
 class OrderAccepted(BaseModel):
@@ -55,6 +59,7 @@ class OrderStatus(BaseModel):
     customer: str
     status: str
     created_at: float
+    channel: str = "walkin"
     barista: str | None = None
     ready_at: float | None = None
 
@@ -87,6 +92,7 @@ async def create_order(order: OrderRequest, request: Request) -> OrderAccepted:
     ticket = {
         "item": order.item,
         "customer": order.customer,
+        "channel": order.channel,
         "status": "queued",
         "created_at": time.time(),
     }
@@ -95,7 +101,7 @@ async def create_order(order: OrderRequest, request: Request) -> OrderAccepted:
     pipe = request.app.state.redis.pipeline(transaction=True)
     pipe.hset(key, mapping=ticket)
     pipe.expire(key, ORDER_TTL_SECONDS)
-    pipe.xadd(LINE_STREAM, {"order_id": order_id, "item": order.item})
+    pipe.xadd(STREAMS[order.channel], {"order_id": order_id, "item": order.item})
     try:
         await pipe.execute()
     except redis.RedisError:
@@ -105,8 +111,8 @@ async def create_order(order: OrderRequest, request: Request) -> OrderAccepted:
             status.HTTP_503_SERVICE_UNAVAILABLE, "The line is unavailable"
         ) from None
 
-    ORDERS_ACCEPTED.labels(item=order.item).inc()
-    logger.info("Order %s accepted: %s", order_id, order.item)
+    ORDERS_ACCEPTED.labels(item=order.item, channel=order.channel).inc()
+    logger.info("Order %s accepted: %s (%s)", order_id, order.item, order.channel)
     return OrderAccepted(order_id=order_id, status="queued")
 
 

@@ -1,6 +1,14 @@
 <#
 .SYNOPSIS
     Sends one rush, the same customers the game simulates, and reports whether every order got made.
+.PARAMETER Rush
+    Which rush from shop/config.json to send, such as lesson-2 or lesson-3-1.
+.PARAMETER Baristas
+    Set the number of barista Pods before the rush, to match a game design.
+.PARAMETER Rule
+    Set how baristas pick the next ticket: fifo, walkin, mobile, or weighted.
+.PARAMETER Every
+    For -Rule weighted: every Nth drink comes from the app rail.
 .PARAMETER KillBarista
     Force-kills one barista partway through. If it finishes its drink first, no
     order needs rescuing, so watch "Orders rescued" on the dashboard.
@@ -9,10 +17,17 @@
 .EXAMPLE
     .\scripts\rush.ps1
 .EXAMPLE
-    .\scripts\rush.ps1 -Record
+    .\scripts\rush.ps1 -Rush lesson-3-2 -Baristas 3 -Rule weighted -Every 5 -Record
 #>
 [CmdletBinding()]
-param([switch]$KillBarista, [switch]$Record)
+param(
+    [string]$Rush = 'lesson-2',
+    [ValidateRange(1, 4)][int]$Baristas,
+    [ValidateSet('fifo', 'walkin', 'mobile', 'weighted')][string]$Rule,
+    [ValidateRange(1, 10)][int]$Every = 3,
+    [switch]$KillBarista,
+    [switch]$Record
+)
 
 $ErrorActionPreference = 'Continue'
 
@@ -27,16 +42,51 @@ function Invoke-Kubectl {
     kubectl --context $Context --request-timeout=20s @args
 }
 
+$settings = (Get-Content "$Root\shop\config.json" -Raw | ConvertFrom-Json).rushes.$Rush
+if (-not $settings) {
+    Write-Host "shop/config.json has no rush named '$Rush'." -ForegroundColor Red
+    exit 1
+}
+
+# Match the baristas to the design being tested. scripts/up.ps1 resets them to the defaults.
+# One change at a time: scaling in the middle of a rollout makes Kubernetes spread Pods
+# across the old and new versions, and a short-lived old barista can take a ticket and
+# vanish before making it. That order then waits 30 seconds to be rescued.
+function Wait-Baristas([int]$Expected) {
+    Invoke-Kubectl rollout status deployment/barista -n rush-hour --timeout=120s | Out-Null
+    # Rollout status can finish while old Pods are still shutting down; wait for them to go.
+    for ($i = 0; $i -lt 60; $i++) {
+        $pods = @(Invoke-Kubectl get pods -n rush-hour -l app=barista -o name)
+        if ($pods.Count -eq $Expected) { return }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host 'Warning: old baristas are still shutting down.' -ForegroundColor Yellow
+}
+$replicas = [int](Invoke-Kubectl get deployment barista -n rush-hour -o 'jsonpath={.spec.replicas}')
+if ($Baristas -and $Baristas -ne $replicas) {
+    Write-Host "Scaling to $Baristas baristas." -ForegroundColor Cyan
+    Invoke-Kubectl scale deployment/barista -n rush-hour --replicas=$Baristas | Out-Null
+    $replicas = $Baristas
+    Wait-Baristas $replicas
+}
+if ($Rule) {
+    Write-Host "Baristas will use rule '$Rule'$(if ($Rule -eq 'weighted') { " (every $Every)" })." -ForegroundColor Cyan
+    Invoke-Kubectl set env deployment/barista -n rush-hour TICKET_RULE=$Rule MOBILE_EVERY=$Every | Out-Null
+    Wait-Baristas $replicas
+}
+if ($Rule -or $Baristas) { Start-Sleep -Seconds 3 }  # Let new baristas join the consumer group.
+
 # A finished Job can't be rerun, so remove the previous rush first.
 Invoke-Kubectl delete job rush -n $Namespace --ignore-not-found --wait=true | Out-Null
 Invoke-Kubectl apply -f "$Root\k8s\rush\setup.yaml" | Out-Null
 
-# The rush script, the shared arrival schedule, the shop settings, and this rush's ID.
+# The rush script, the shared arrival schedule, the shop settings, and this rush's ID and name.
 Invoke-Kubectl create configmap rush-script -n $Namespace `
     --from-file=rush.js="$Root\k8s\rush\rush.js" `
     --from-file=arrivals.js="$Root\web\src\arrivals.mjs" `
     --from-file=config.json="$Root\shop\config.json" `
     --from-literal=rush-id=$RushId `
+    --from-literal=rush-name=$Rush `
     --dry-run=client -o yaml | kubectl --context $Context apply -f - | Out-Null
 
 Invoke-Kubectl apply -f "$Root\k8s\rush\job.yaml"
@@ -45,8 +95,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$customers = (Get-Content "$Root\shop\config.json" -Raw | ConvertFrom-Json).rushes.'lesson-2'.customers
-Write-Host "Rush $RushId started: $customers customers, arriving as the game schedules them." -ForegroundColor Cyan
+Write-Host "Rush $RushId ($Rush) started: $($settings.customers) customers, arriving as the game schedules them." -ForegroundColor Cyan
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $killed = -not $KillBarista
 $succeeded = $null
@@ -81,7 +130,7 @@ if ($Record) {
     if ($KillBarista) {
         Write-Host 'Not recording: a rush with a killed barista would not match the game.' -ForegroundColor Yellow
     } else {
-        & "$PSScriptRoot\record-rush.ps1" -RushId $RushId
+        & "$PSScriptRoot\record-rush.ps1" -RushId $RushId -Rush $Rush
         exit $LASTEXITCODE
     }
 }

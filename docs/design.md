@@ -152,7 +152,18 @@ One server wakes on demand and shuts down when idle, within a hard maximum of $3
 
 `web/src/arrivals.mjs` builds the arrival schedule from the seed. It has no imports, so the game and k6 load the same file and send exactly the same customers at the same moments. `scripts/up.ps1` stamps a hash of the settings on the register and barista Deployments, so they restart only when the settings change.
 
-**Calibration:** `.\scripts\rush.ps1 -Record` saves a real rush's exact order timings from Redis to `web/test/fixtures/real-rush.json`. `web/test/calibration.test.mjs` runs the game with the same design and fails if it drifts from the recording:
+**Replaying a level on the cluster:** `.\scripts\rush.ps1 -Rush lesson-3-2 -Baristas 3 -Rule weighted -Every 5` sets the barista count and ticket rule, then sends that rush. Baristas read their rule from `TICKET_RULE` and `MOBILE_EVERY`. They poll both streams every 50 ms when idle, so the rule, not Redis, picks the rail. For oldest-first, they peek at each stream's oldest untaken ticket, using time-ordered stream IDs, before taking one.
+
+**Calibration:** `.\scripts\rush.ps1 -Rush <name> -Record` saves a real rush's exact order timings from Redis to `web/test/fixtures/real-rush-<rush>-<rule>.json`. `web/test/calibration.test.mjs` runs the game with the same rush and design for every recording, and fails if any drifts:
+
+| Recording (2026-11-11) | Longest wait, real / game | Average per-order difference |
+|---|---|---|
+| Lesson 2, 2 baristas, oldest first | 55.0 / 54.8 min | 0.13 min |
+| Lesson 3.1, 3 baristas, walk-ins first | walk-in 7.1 / 6.9, app 19.9 / 19.8 min | 0.09 min |
+| Lesson 3.2, 3 baristas, walk-ins first (starvation) | walk-in 6.5 / 6.4, app 32.2 / 32.2 min | 0.08 min |
+| Lesson 3.2, 3 baristas, every 5th from the app | walk-in 11.5 / 11.4, app 26.3 / 26.2 min | 0.08 min |
+
+The first lesson 2 recording, from 2026-11-10, is below:
 
 | Check | Tolerance | First recording (2026-11-10, 2 baristas) |
 |---|---|---|

@@ -17,6 +17,7 @@ You need Docker Desktop (running), [k3d](https://k3d.io), `kubectl`, and
 .\scripts\rush.ps1              # Send a 50-order rush and check every order gets made
 .\scripts\rush.ps1 -KillBarista # Same, but kill a barista partway through
 .\scripts\rush.ps1 -Record      # Send a rush and save it for the game's calibration test
+.\scripts\rush.ps1 -Rush lesson-3-2 -Baristas 3 -Rule weighted -Every 5   # Replay a game level for real
 .\scripts\grafana.ps1           # Open Grafana's "Rush Hour" dashboard tunnel and copy the password
 .\scripts\site.ps1              # Build the course site and serve it at http://127.0.0.1:8080
 cd web; npm test                # Engine, level, and calibration tests

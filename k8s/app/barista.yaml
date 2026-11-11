@@ -34,6 +34,12 @@ spec:
               value: redis://redis:6379/0
             - name: SHOP_CONFIG
               value: /config/config.json
+            # How a free barista picks the next ticket: fifo, walkin, mobile, or weighted.
+            # scripts/rush.ps1 -Rule changes it for a rush, to match a game level.
+            - name: TICKET_RULE
+              value: fifo
+            - name: MOBILE_EVERY
+              value: "3"
           volumeMounts:
             - name: shop-config
               mountPath: /config

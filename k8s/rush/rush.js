@@ -1,6 +1,6 @@
 // One rush on the real cluster: the same customers, arriving at the same moments,
 // as the game. scripts/rush.ps1 mounts this file with arrivals.js (from
-// web/src/arrivals.mjs), config.json (from shop/config.json), and rush-id.
+// web/src/arrivals.mjs), config.json (from shop/config.json), rush-id, and rush-name.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
@@ -9,7 +9,8 @@ import { buildSchedule } from './arrivals.js';
 // The rush comes only from files in the repo, so nothing outside it can make it bigger.
 const config = JSON.parse(open('./config.json'));
 const RUSH_ID = open('./rush-id').trim();
-const SCHEDULE = buildSchedule(config, 'lesson-2');
+const RUSH_NAME = open('./rush-name').trim();
+const SCHEDULE = buildSchedule(config, RUSH_NAME);
 const TIME_SCALE = config.timeScale; // Shop seconds per real second.
 
 const REGISTER = 'http://register.rush-hour.svc.cluster.local';
@@ -42,7 +43,7 @@ export default function () {
 
   const placed = http.post(
     `${REGISTER}/orders`,
-    JSON.stringify({ item: order.item, customer: `rush-${RUSH_ID}-${order.id}` }),
+    JSON.stringify({ item: order.item, channel: order.channel, customer: `rush-${RUSH_ID}-${order.id}` }),
     { headers: { 'Content-Type': 'application/json' }, timeout: '10s' },
   );
   if (!check(placed, { 'order accepted': (r) => r.status === 202 })) {
