@@ -30,6 +30,10 @@ export const POLICIES = {
  *   capacity: most tickets the walk-in rail holds (Infinity for no limit)
  *   policy: one of POLICIES (default 'fifo')
  *   mobileEvery: for 'weighted', each barista makes every Nth drink from the app rail
+ *   batch: steam milk for two lattes at once when another latte ticket is waiting,
+ *     from anywhere on either rail. The pair takes config.batch.prepFactor x one latte.
+ *   batchWait: shop seconds a barista holds a lone latte, hoping a second one arrives
+ *     (a batch window). 0 means only batch tickets that are already waiting.
  * @param {{config: object, rush?: string, look?: Function}} options
  *   config is shop/config.json, rush names one of its rushes. look(customer, rand)
  *   lets the game add visual details. It gets its own random sequence, so it can
@@ -39,11 +43,11 @@ export function createRun(design, { config, rush = 'lesson-2', look } = {}) {
   if (!config) throw new Error('createRun needs the shop config');
   const settings = config.rushes[rush];
   if (!settings) throw new Error(`shop config has no rush named ${rush}`);
-  design = { policy: 'fifo', mobileEvery: 3, capacity: Infinity, ...design };
+  design = { policy: 'fifo', mobileEvery: 3, capacity: Infinity, batch: false, batchWait: 0, ...design };
   if (!(design.policy in POLICIES)) throw new Error(`unknown policy ${design.policy}`);
 
   const menu = menuById(config);
-  const shop = { ...settings, orderSeconds: config.register.orderSeconds };
+  const shop = { ...settings, orderSeconds: config.register.orderSeconds, batchFactor: config.batch?.prepFactor ?? 1 };
   const lookRand = mulberry32(settings.seed ^ 0x5bd1e995);
   const customers = buildSchedule(config, rush).map(a => {
     const c = { id: a.id, item: a.item, channel: a.channel, arriveAt: a.at, state: 'outside', orderedAt: 0, readyAt: 0 };
@@ -54,8 +58,10 @@ export function createRun(design, { config, rush = 'lesson-2', look } = {}) {
     design, shop, menu, rushName: rush,
     t: 0, lastEventT: 0, customers, events: [], regQueue: [], ordering: null, cashierFrom: 0,
     rail: [], mobileRail: [],
-    baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, reserved: null, startAt: 0, doneAt: 0, busyTime: 0, sinceMobile: 0 })),
-    cups: [], pops: [], served: 0, rejected: 0, longestWait: 0,
+    // ticket: the drink in hand. partner: a second latte sharing the pitcher.
+    // holding: waiting by the steamer for a second latte (a batch window).
+    baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, partner: null, holding: false, holdUntil: 0, reserved: null, startAt: 0, doneAt: 0, busyTime: 0, sinceMobile: 0 })),
+    cups: [], pops: [], served: 0, rejected: 0, longestWait: 0, steams: 0, batches: 0,
     byChannel: { walkin: { served: 0, rejected: 0, longestWait: 0 }, mobile: { served: 0, rejected: 0, longestWait: 0 } },
     series: [[0, 0, 0]], nextSample: SAMPLE_EVERY,
     message: '', finished: false, logicDone: false,
@@ -102,25 +108,34 @@ function handle(run, e, onEvent) {
       // No queue: the order goes straight to the barista reserved for it.
       const b = run.baristas.find(x => x.reserved === c);
       b.reserved = null;
-      startDrink(run, b, ticket, t);
+      startDrink(run, b, ticket, null, t);
     } else {
       run.rail.push(ticket);
       tryBaristas(run, t);
     }
     if (onEvent) onEvent('accepted', c, ticket);
     tryRegister(run, t, onEvent);
+  } else if (e.type === 'holdTimeout') {
+    // No second latte came in time: steam for one.
+    const b = e.data;
+    if (b.holding && b.holdUntil === t) { b.holding = false; startDrink(run, b, b.ticket, null, t); }
   } else if (e.type === 'drinkDone') {
-    const b = e.data, c = b.ticket.c;
+    const b = e.data;
     b.busyTime += t - b.startAt;
-    b.ticket = null;
-    c.state = 'pickup'; c.readyAt = t;
-    // Walk-ins wait from walking in; app customers from placing the order.
-    const wait = t - (c.channel === 'mobile' ? c.orderedAt : c.arriveAt);
-    const ch = run.byChannel[c.channel];
-    ch.served++; ch.longestWait = Math.max(ch.longestWait, wait);
-    run.served++;
-    run.longestWait = Math.max(run.longestWait, wait);
-    if (onEvent) onEvent('done', c, b);
+    // A batch finishes both drinks together.
+    for (const ticket of [b.ticket, b.partner]) {
+      if (!ticket) continue;
+      const c = ticket.c;
+      c.state = 'pickup'; c.readyAt = t;
+      // Walk-ins wait from walking in; app customers from placing the order.
+      const wait = t - (c.channel === 'mobile' ? c.orderedAt : c.arriveAt);
+      const ch = run.byChannel[c.channel];
+      ch.served++; ch.longestWait = Math.max(ch.longestWait, wait);
+      run.served++;
+      run.longestWait = Math.max(run.longestWait, wait);
+      if (onEvent) onEvent('done', c, b);
+    }
+    b.ticket = null; b.partner = null;
     tryBaristas(run, t);
     tryRegister(run, t, onEvent);
   }
@@ -163,16 +178,48 @@ function nextTicket(run, b) {
   return run.rail.shift();
 }
 
+const batchable = (run, ticket) => run.menu[ticket.item].batchable;
+
+/** Take the oldest batchable ticket waiting on either rail, skipping past others. */
+function takePartner(run) {
+  let best = null, from = null;
+  for (const rail of [run.rail, run.mobileRail]) {
+    const tk = rail.find(x => batchable(run, x));
+    if (tk && (!best || tk.t < best.t)) { best = tk; from = rail; }
+  }
+  if (best) from.splice(from.indexOf(best), 1);
+  return best;
+}
+
 function tryBaristas(run, t) {
   for (const b of run.baristas) {
+    if (b.holding) {
+      // Waiting by the steamer: a second latte just showed up.
+      const partner = takePartner(run);
+      if (partner) { b.holding = false; startDrink(run, b, b.ticket, partner, t); }
+      continue;
+    }
     if (b.ticket || b.reserved) continue;
     const ticket = nextTicket(run, b);
-    if (ticket) startDrink(run, b, ticket, t);
+    if (!ticket) continue;
+    if (run.design.batch && batchable(run, ticket)) {
+      const partner = takePartner(run);
+      if (partner) { startDrink(run, b, ticket, partner, t); continue; }
+      if (run.design.batchWait > 0) {
+        b.ticket = ticket; b.holding = true; b.holdUntil = t + run.design.batchWait;
+        schedule(run, b.holdUntil, 'holdTimeout', b);
+        continue;
+      }
+    }
+    startDrink(run, b, ticket, null, t);
   }
 }
 
-function startDrink(run, b, ticket, t) {
-  b.ticket = ticket; b.startAt = t; b.doneAt = t + run.menu[ticket.item].prep;
+function startDrink(run, b, ticket, partner, t) {
+  const prep = run.menu[ticket.item].prep * (partner ? run.shop.batchFactor : 1);
+  b.ticket = ticket; b.partner = partner; b.startAt = t; b.doneAt = t + prep;
+  if (run.menu[ticket.item].batchable) run.steams++;
+  if (partner) run.batches++;
   schedule(run, b.doneAt, 'drinkDone', b);
 }
 
@@ -214,6 +261,8 @@ export function summarize(run) {
     utilization: busy / (end * run.baristas.length),
     peakQueue: Math.max(...run.series.map(p => p[1])),
     peakMobileQueue: Math.max(...run.series.map(p => p[2])),
+    steams: run.steams, // Pitchers of milk steamed: one per latte, or one per batch of two.
+    batches: run.batches,
     walkin: channel(run.byChannel.walkin),
     mobile: channel(run.byChannel.mobile),
   };

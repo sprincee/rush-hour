@@ -22,13 +22,42 @@
       "windowSeconds": 1800,
       "seed": 20261113,
       "mobileShare": 0.35
+    },
+    "lesson-4-1": {
+      "description": "A latte-heavy morning: 28 walk-ins over 15 minutes, 70% lattes.",
+      "customers": 28,
+      "windowSeconds": 900,
+      "seed": 20261121,
+      "mobileShare": 0,
+      "menuShares": { "latte": 0.7, "cappuccino": 0.15, "drip": 0.15 }
+    },
+    "lesson-4-2": {
+      "description": "A quiet half hour: 16 walk-ins over 30 minutes, 70% lattes.",
+      "customers": 16,
+      "windowSeconds": 1800,
+      "seed": 20261124,
+      "mobileShare": 0,
+      "menuShares": { "latte": 0.7, "cappuccino": 0.15, "drip": 0.15 }
+    },
+    "lesson-4-3": {
+      "description": "The app rush: 48 customers over 30 minutes, 35% ordering in the app, 70% lattes.",
+      "customers": 48,
+      "windowSeconds": 1800,
+      "seed": 20261126,
+      "mobileShare": 0.35,
+      "menuShares": { "latte": 0.7, "cappuccino": 0.15, "drip": 0.15 }
     }
   },
   "register": {
     "orderSeconds": 8
   },
+  "batch": {
+    "description": "Steaming milk for two lattes at once. In the real shop one latte takes 2 minutes and two batched take 2.5, so a batch takes 1.25x one drink.",
+    "maxSize": 2,
+    "prepFactor": 1.25
+  },
   "menu": [
-    { "id": "latte", "label": "Latte", "short": "LATTE", "prepSeconds": 180, "share": 0.4 },
+    { "id": "latte", "label": "Latte", "short": "LATTE", "prepSeconds": 180, "share": 0.4, "batchable": true },
     { "id": "cappuccino", "label": "Cappuccino", "short": "CAPP", "prepSeconds": 150, "share": 0.3 },
     { "id": "drip", "label": "Drip coffee", "short": "DRIP", "prepSeconds": 120, "share": 0.3 }
   ]

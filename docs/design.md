@@ -56,6 +56,18 @@ A third level with a dedicated app barista (a separate worker pool, or bulkhead)
 
 On the real cluster, each channel gets its own Redis stream (`line:walkin`, `line:mobile`), and baristas follow the same rule as the game. Each barista keeps its own count for fair share, exactly as the engine does.
 
+### Lesson 4 levels
+
+From the real shop: one latte takes 2 minutes and two batched take 2.5, so a batch takes 1.25x one latte (`config.batch.prepFactor`). The game keeps lattes at 3 minutes so lessons 2 and 3 stay tuned, which makes a batch 3.75 minutes. Cappuccinos never share a pitcher, and drip needs no milk. A barista with a latte ticket grabs the oldest other latte waiting anywhere, on either rail and even past a cappuccino, and makes both. Without that skip-ahead, levels 4.1 and 4.3 stop being winnable.
+
+| Level | Rush | Concept | Tuning |
+|---|---|---|---|
+| 4.1 Steam for two | 28 over 15 min, 70% lattes, 2 baristas ($40) | Batching | No batching 25.6 min longest wait (goal 20); batching 15.8 |
+| 4.2 Should you wait for a second latte? | 16 over 30 min, 70% lattes, crew fixed at 2 | Batch window (Kafka's `linger.ms`) | Goals: 8 min and 9 pitchers. Windows of 2-4 min pass; 0-1 use 11-13 pitchers; 5-6 make waits 9-10 min |
+| 4.3 The app rush | 48 over 30 min, 35% app, 70% lattes, 3 baristas ($60) | Do less work, not just reorder it (builds on lesson 3) | Goals: walk-ins 15, app orders 10 (ready on arrival). Every lesson 3 rule fails without batching; with batching every rule passes |
+
+Two things found while tuning: one barista batches naturally because tickets pile up (which is why 4.2 fixes the crew at 2), and in a busy shop a batch window only adds waiting (4.1: 15.8 to 18.8 minutes).
+
 ### Ideas for later lessons
 
 - **Lesson 4, batching:** steam milk for 2-3 drinks from one pitcher, so each drink costs less time and money. The first drink waits for the batch.

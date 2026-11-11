@@ -24,6 +24,8 @@ export function buildSchedule(config, rush = 'lesson-2') {
   const settings = config.rushes[rush];
   if (!settings) throw new Error(`shop config has no rush named ${rush}`);
   const { customers, windowSeconds, seed, mobileShare = 0 } = settings;
+  // A rush can change the drink mix, like a latte-heavy morning. Same order, new shares.
+  const menu = config.menu.map(m => ({ ...m, share: settings.menuShares?.[m.id] ?? m.share }));
   const rand = mulberry32(seed);
   // Who uses the app gets its own random sequence, so adding app orders never
   // reshuffles anyone's arrival time or drink.
@@ -32,9 +34,9 @@ export function buildSchedule(config, rush = 'lesson-2') {
   const schedule = [];
   for (let i = 0; i < customers; i++) {
     const p = rand();
-    let item = config.menu[config.menu.length - 1].id;
+    let item = menu[menu.length - 1].id;
     let cumulative = 0;
-    for (const m of config.menu) {
+    for (const m of menu) {
       cumulative += m.share;
       if (p < cumulative) { item = m.id; break; }
     }
@@ -45,7 +47,7 @@ export function buildSchedule(config, rush = 'lesson-2') {
   return schedule;
 }
 
-/** { latte: { label, short, prep }, ... } with prep in shop seconds. */
+/** { latte: { label, short, prep, batchable }, ... } with prep in shop seconds. */
 export function menuById(config) {
-  return Object.fromEntries(config.menu.map(m => [m.id, { label: m.label, short: m.short, prep: m.prepSeconds }]));
+  return Object.fromEntries(config.menu.map(m => [m.id, { label: m.label, short: m.short, prep: m.prepSeconds, batchable: !!m.batchable }]));
 }

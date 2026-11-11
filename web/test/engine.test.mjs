@@ -148,6 +148,63 @@ test('fair share sits between the two strict rules', () => {
   assert.deepEqual(summarize(run({ ...base, policy: 'weighted', mobileEvery: 1000 }, opts)), summarize(run({ ...base, policy: 'walkin' }, opts)));
 });
 
+// Steps through a rush and calls check(barista, run) whenever a barista starts a drink.
+function watchStarts(design, rush, check) {
+  const r = createRun(design, { config, rush });
+  const seen = new Set();
+  while (r.events.length) {
+    r.t = r.events[0].t;
+    processEvents(r);
+    for (const b of r.baristas) {
+      if (b.ticket && !b.holding && !seen.has(b.ticket)) { seen.add(b.ticket); check(b, r); }
+    }
+  }
+  return r;
+}
+
+test('batching only pairs lattes, two at a time, in 1.25x the time of one', () => {
+  let pairs = 0;
+  watchStarts({ baristas: 2, rail: true, batch: true }, 'lesson-4-1', (b, r) => {
+    if (!b.partner) return;
+    pairs++;
+    assert.equal(r.menu[b.ticket.item].batchable && r.menu[b.partner.item].batchable, true, 'both drinks are lattes');
+    assert.equal(b.doneAt - b.startAt, r.menu.latte.prep * config.batch.prepFactor);
+  });
+  assert.ok(pairs > 0);
+});
+
+test('a second latte can skip ahead of a cappuccino waiting between them', () => {
+  let skipped = 0;
+  watchStarts({ baristas: 2, rail: true, batch: true }, 'lesson-4-1', (b, r) => {
+    if (b.partner && r.rail.some(tk => tk.t < b.partner.t && tk.item !== 'latte')) skipped++;
+  });
+  assert.ok(skipped > 0, 'no batch ever skipped past a non-latte');
+});
+
+test('without batching, every latte gets its own pitcher', () => {
+  const s = summarize(run({ baristas: 2, rail: true }, { rush: 'lesson-4-1' }));
+  const lattes = createRun({ baristas: 2, rail: true }, { config, rush: 'lesson-4-1' }).customers.filter(c => c.item === 'latte').length;
+  assert.equal(s.batches, 0);
+  assert.equal(s.steams, lattes);
+});
+
+test('a held latte starts by the end of its batch window, alone if no partner came', () => {
+  const r = createRun({ baristas: 2, rail: true, batch: true, batchWait: 180 }, { config, rush: 'lesson-4-2' });
+  const heldSince = new Map();
+  while (r.events.length) {
+    r.t = r.events[0].t;
+    processEvents(r);
+    for (const b of r.baristas) {
+      if (b.holding && !heldSince.has(b.ticket)) heldSince.set(b.ticket, r.t);
+      if (b.ticket && !b.holding && heldSince.has(b.ticket)) {
+        assert.ok(b.startAt - heldSince.get(b.ticket) <= 180 + 1e-9, 'held longer than the window');
+        heldSince.delete(b.ticket);
+      }
+    }
+  }
+  assert.equal(summarize(r).served, config.rushes['lesson-4-2'].customers);
+});
+
 test('workers are never busy more than all of the time', () => {
   const s = summarize(run({ baristas: 1, rail: true, capacity: Infinity }));
   assert.ok(s.utilization > 0 && s.utilization <= 1);
