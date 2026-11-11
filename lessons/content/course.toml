@@ -28,6 +28,7 @@ name = "The flow"
   number = 4
   concept = "Batching"
   coffee = "Steaming milk for several drinks at once"
+  page = "batching"
 
 [[groups]]
 id = "B"

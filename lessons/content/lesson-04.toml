@@ -1,0 +1,8 @@
+# Lesson 4's page. Levels, goals and debrief text live in web/src/lessons/lesson4.mjs.
+slug = "batching"
+module = "lesson4.mjs"
+eyebrow = "Group A · The flow · Lesson 4 of 12"
+heading = "Steaming milk for two"
+description = "Batch the milk for two lattes at once, decide how long to wait for a second latte, and use batching to rescue the app rush."
+lede = "Steaming milk takes a big share of every latte, and one pitcher can steam for two. Decide when your baristas batch, how long they should wait for a second latte, and whether lesson 3's ticket rules are enough on their own."
+foot = "The rush runs on an event-based simulation: every order, ticket and drink happens at an exact time, so the same design always gives the same result. It's checked against real rushes on the Rush Hour Kubernetes cluster."

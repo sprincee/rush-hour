@@ -113,7 +113,9 @@ export function startGame({ config, lesson }) {
       c.via = null;
       run.cups.push({ id: c.id, born: performance.now() });
       run.pops.push({ text: '200 OK', x: 852, y: 214, color: COLORS.done, born: performance.now() });
-      run.message = `${clock(t)}  Order up for customer ${c.id}. <b>→ Worker ${extra.i + 1} finished the job: 200 OK.</b>`;
+      run.message = extra.partner
+        ? `${clock(t)}  Two lattes up, for customers ${extra.ticket.id} and ${extra.partner.id}. <b>→ Worker ${extra.i + 1} finished a batch of 2 jobs: two 200 OKs from one pitcher.</b>`
+        : `${clock(t)}  Order up for customer ${c.id}. <b>→ Worker ${extra.i + 1} finished the job: 200 OK.</b>`;
     }
   }
 
@@ -279,7 +281,7 @@ export function startGame({ config, lesson }) {
     c.fillStyle = v; c.fillRect(0, 0, W, H);
   }
 
-  function drawStaff(c, x, now, busy, progress, skin, hair) {
+  function drawStaff(c, x, now, busy, progress, skin, hair, ring = '#e0a85c') {
     const sway = busy && !REDUCED ? Math.sin(now / 150 + x) * 2.2 : 0;
     c.fillStyle = 'rgba(0, 0, 0, 0.10)'; ellipse(c, x, 292, 30, 6); c.fill();
     c.fillStyle = lg(c, x - 22, 0, x + 22, 0, [[0, '#ddd6cc'], [0.5, '#f4f0ea'], [1, '#d6cfc4']]); rr(c, x - 22, 232, 44, 72, 15); c.fill();
@@ -297,7 +299,7 @@ export function startGame({ config, lesson }) {
     if (busy) {
       c.lineWidth = 4;
       c.strokeStyle = 'rgba(255, 255, 255, 0.7)'; circle(c, x, 184, 10); c.stroke();
-      c.strokeStyle = '#e0a85c'; c.beginPath(); c.arc(x, 184, 10, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); c.stroke();
+      c.strokeStyle = ring; c.beginPath(); c.arc(x, 184, 10, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); c.stroke();
     }
   }
 
@@ -311,6 +313,27 @@ export function startGame({ config, lesson }) {
     c.font = "500 5px 'IBM Plex Mono', monospace"; c.fillText(menu[t.item].short, 0, 18);
     c.fillStyle = t.channel === 'mobile' ? '#2a78d6' : '#b8792f'; c.fillRect(-6, 22, 12, 1.5);
     c.restore();
+  }
+
+  function holdProgress(run, b) {
+    return clamp(1 - (b.holdUntil - run.t) / Math.max(1, run.design.batchWait), 0, 1);
+  }
+
+  function drawPitcher(c, x, y, s, steaming) {
+    c.save(); c.translate(x, y); c.scale(s, s);
+    c.fillStyle = 'rgba(40, 20, 10, 0.22)'; ellipse(c, 0, 0, 8, 2.5); c.fill();
+    c.fillStyle = lg(c, -7, 0, 7, 0, [[0, '#9aa1a7'], [0.5, '#f1f3f4'], [1, '#8f979d']]);
+    c.beginPath(); c.moveTo(-6, -18); c.lineTo(6, -18); c.lineTo(7, 0); c.lineTo(-7, 0); c.closePath(); c.fill();
+    c.strokeStyle = '#7d858c'; c.lineWidth = 1.6; c.beginPath(); c.arc(8, -10, 4, -Math.PI / 2, Math.PI / 2); c.stroke();
+    if (steaming) { c.fillStyle = 'rgba(255, 255, 255, 0.85)'; ellipse(c, 0, -18, 5.5, 1.6); c.fill(); }
+    c.restore();
+  }
+
+  function labelChip(c, x, y, text) {
+    c.font = "700 11px 'IBM Plex Mono', monospace";
+    const w = c.measureText(text).width + 12;
+    rr(c, x - w / 2, y - 13, w, 18, 6); c.fillStyle = 'rgba(22, 15, 10, 0.82)'; c.fill();
+    c.fillStyle = '#fff7ec'; c.textAlign = 'center'; c.fillText(text, x, y); c.textAlign = 'left';
   }
 
   function drawCup(c, x, y, s) {
@@ -356,7 +379,7 @@ export function startGame({ config, lesson }) {
     if (p.state === 'walkout') return COLORS.rejected;
     if (p.state === 'pickup' || p.state === 'leaving') return COLORS.done;
     if (p.state === 'queue' || p.state === 'ordering') return COLORS.arriving;
-    if (run.baristas.some(b => b.ticket && b.ticket.c === p)) return COLORS.working;
+    if (run.baristas.some(b => (b.ticket && b.ticket.c === p) || (b.partner && b.partner.c === p))) return COLORS.working;
     return COLORS.queued;
   }
 
@@ -464,11 +487,19 @@ export function startGame({ config, lesson }) {
       c.textAlign = 'center';
       c.font = `600 ${big ? 16 : 11}px 'IBM Plex Mono', monospace`;
       c.fillStyle = busy ? '#ffd2b8' : '#a9c4e0';
-      c.fillText(busy ? `#${b.ticket.id} ${menu[b.ticket.item].short}` : 'idle', x, 262);
+      const label = !busy ? 'idle'
+        : b.holding ? `#${b.ticket.id} waits`
+        : b.partner ? `#${b.ticket.id}+#${b.partner.id} ×2`
+        : `#${b.ticket.id} ${menu[b.ticket.item].short}`;
+      c.fillText(label, x, 262);
       if (busy) {
-        const p = clamp((run.t - b.startAt) / (b.doneAt - b.startAt), 0, 1);
+        const p = b.holding ? holdProgress(run, b) : clamp((run.t - b.startAt) / (b.doneAt - b.startAt), 0, 1);
         c.fillStyle = 'rgba(255, 255, 255, 0.2)'; rr(c, x - 32, 284, 64, 8, 4); c.fill();
-        c.fillStyle = COLORS.working; rr(c, x - 32, 284, Math.max(8, 64 * p), 8, 4); c.fill();
+        c.fillStyle = b.holding ? COLORS.queued : COLORS.working; rr(c, x - 32, 284, Math.max(8, 64 * p), 8, 4); c.fill();
+      }
+      if (b && b.holding && !big) {
+        c.font = "500 10px 'IBM Plex Mono', monospace"; c.fillStyle = '#a9c4e0';
+        c.fillText('batch window', x, 278);
       }
       c.textAlign = 'left';
     });
@@ -544,10 +575,16 @@ export function startGame({ config, lesson }) {
     drawStaff(ctx, CASHIER_X, now, !!run.ordering, 0, '#c68b62', '#2b1d16');
     run.baristas.forEach((b, i) => {
       const busy = !!b.ticket;
-      const progress = busy ? clamp((run.t - b.startAt) / (b.doneAt - b.startAt), 0, 1) : 0;
-      drawStaff(ctx, xs[i], now, busy, progress, STAFF_LOOK[i][0], STAFF_LOOK[i][1]);
+      const progress = b.holding ? holdProgress(run, b) : busy ? clamp((run.t - b.startAt) / (b.doneAt - b.startAt), 0, 1) : 0;
+      drawStaff(ctx, xs[i], now, busy, progress, STAFF_LOOK[i][0], STAFF_LOOK[i][1], b.holding ? '#5aa2f0' : '#e0a85c');
     });
     if (frontLayer) ctx.drawImage(frontLayer, 0, 0, W, H);
+    run.baristas.forEach((b, i) => {
+      if (!b.ticket || !menu[b.ticket.item].batchable) return;
+      drawPitcher(ctx, xs[i] - 30, 288, b.partner ? 1.3 : 1, !b.holding);
+      if (b.partner) labelChip(ctx, xs[i] - 30, 252, '×2');
+      if (b.holding) labelChip(ctx, xs[i], 160, '2nd latte?');
+    });
     if (run.ordering) {
       const p = clamp((run.t - run.cashierFrom) / config.register.orderSeconds, 0, 1);
       ctx.fillStyle = '#fffdf6'; ctx.fillRect(274, 272 - p * 16, 16, p * 16);
@@ -570,7 +607,10 @@ export function startGame({ config, lesson }) {
       ctx.fillStyle = '#eef5fd'; ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = 'center';
       ctx.fillText('+' + (run.mobileRail.length - APP_RAIL.slots), x + 10, 174); ctx.textAlign = 'left';
     }
-    run.baristas.forEach(b => { if (b.ticket && b.ticket.x !== undefined) drawTicket(ctx, b.ticket); });
+    run.baristas.forEach(b => {
+      if (b.ticket && b.ticket.x !== undefined) drawTicket(ctx, b.ticket);
+      if (b.partner && b.partner.x !== undefined) drawTicket(ctx, b.partner);
+    });
     if (run.rail.length > RAIL.slots) {
       const x = RAIL.x0 + RAIL.slots * RAIL.step;
       rr(ctx, x - 8, 160, 36, 20, 6); ctx.fillStyle = '#2a211b'; ctx.fill();
@@ -640,11 +680,16 @@ export function startGame({ config, lesson }) {
       const t = b.ticket;
       if (t.x === undefined) spawnTicket(t);
       t.x += (xs[i] + 16 - t.x) * ease; t.y += (258 - t.y) * ease;
+      if (b.partner) {
+        const p = b.partner;
+        if (p.x === undefined) spawnTicket(p);
+        p.x += (xs[i] + 34 - p.x) * ease; p.y += (262 - p.y) * ease;
+      }
     });
     run.pops = run.pops.filter(pp => performance.now() - pp.born < 1500);
     if (!REDUCED && dt > 0) {
       run.baristas.forEach((b, i) => {
-        if (b.ticket && Math.random() < dt * 12) {
+        if (b.ticket && !b.holding && Math.random() < dt * 12) {
           const w = WANDS[i % 2];
           state.steam.push({ x: w.x + (Math.random() - 0.5) * 6, y: w.y, r: 6, life: 1, drift: Math.random() * 6 });
         }
@@ -753,6 +798,50 @@ export function startGame({ config, lesson }) {
     }).join('')}<li><span class="mk ${s ? 'ok' : ''}" aria-hidden="true">${s ? '✓' : ''}</span><span>Stay within the $${lv.budget} budget</span></li></ul>`;
   }
 
+  function baristaPart(lv, d) {
+    if (lv.controls && !lv.controls.includes('baristas')) return `
+        <div class="part">
+          <div><span class="name">Baristas</span><span class="sys">Workers</span></div>
+          <strong>${d.baristas}, fixed</strong>
+          <p class="desc">Today's crew is set. $${COST.barista} each for the rush.</p>
+        </div>`;
+    return `
+        <div class="part">
+          <div><span class="name">Baristas</span><span class="sys">Workers</span></div>
+          <div class="stepper">
+            <button type="button" data-act="minus" aria-label="Remove a barista" ${d.baristas <= 1 ? 'disabled' : ''}>−</button>
+            <output aria-live="polite">${d.baristas}</output>
+            <button type="button" data-act="plus" aria-label="Add a barista" ${d.baristas >= 4 ? 'disabled' : ''}>+</button>
+          </div>
+          <p class="desc">Each barista makes one drink at a time. $${COST.barista} each for the rush.</p>
+        </div>`;
+  }
+
+  // For levels that list their controls, like lesson 4.
+  function controlParts(lv, d) {
+    const minutes = d.batchWait / 60;
+    let html = lv.policies ? policyParts(lv, d) : `
+        <div class="part">
+          <div><span class="name">Ticket rail</span><span class="sys">Queue</span></div>
+          <strong>Included</strong>
+          <p class="desc">Tickets wait here until a barista is free. $${COST.rail}.</p>
+        </div>`;
+    if (lv.controls.includes('batch')) html += `
+        <div class="part">
+          <div><span class="name">Batch the milk</span><span class="sys">Batching</span></div>
+          <button type="button" class="switch" data-act="batch" aria-pressed="${d.batch}">${d.batch ? 'On' : 'Off'}</button>
+          <p class="desc">When another latte is waiting, steam for both at once. Two lattes take 1.25 times as long as one. Cappuccinos can't share a pitcher.</p>
+        </div>`;
+    if (lv.controls.includes('batchWait')) html += `
+        <div class="part">
+          <div><span class="name">Wait for a second latte</span><span class="sys">Batch window</span></div>
+          <strong id="waitLabel">${minutes === 0 ? "Don't wait" : `Up to ${minutes} min`}</strong>
+          <input type="range" id="batchWait" min="0" max="6" step="1" value="${minutes}" aria-label="Minutes to hold a lone latte">
+          <p class="desc">A barista with one latte holds it this long, hoping a second latte arrives to share the pitcher. Batching is on.</p>
+        </div>`;
+    return html;
+  }
+
   function railParts(lv, d) {
     return `
         <div class="part">
@@ -805,16 +894,8 @@ export function startGame({ config, lesson }) {
       ${goalsHTML(lv, null)}
       <h3>Design your shop</h3>
       <div class="build">
-        <div class="part">
-          <div><span class="name">Baristas</span><span class="sys">Workers</span></div>
-          <div class="stepper">
-            <button type="button" data-act="minus" aria-label="Remove a barista" ${d.baristas <= 1 ? 'disabled' : ''}>−</button>
-            <output aria-live="polite">${d.baristas}</output>
-            <button type="button" data-act="plus" aria-label="Add a barista" ${d.baristas >= 4 ? 'disabled' : ''}>+</button>
-          </div>
-          <p class="desc">Each barista makes one drink at a time. $${COST.barista} each for the rush.</p>
-        </div>
-        ${lv.policies ? policyParts(lv, d) : railParts(lv, d)}
+        ${baristaPart(lv, d)}
+        ${lv.controls ? controlParts(lv, d) : lv.policies ? policyParts(lv, d) : railParts(lv, d)}
         <div class="lockrow">
           ${LOCKED.map(l => `<div class="part locked"><div><span class="name">${l.name}</span><span class="sys">${l.sys} · ${l.lesson}</span></div></div>`).join('')}
         </div>
@@ -831,6 +912,14 @@ export function startGame({ config, lesson }) {
   }
 
 
+  function batchFacts(s) {
+    const lv = LEVELS[state.level];
+    if (!lv.controls || !lv.controls.some(c => c === 'batch' || c === 'batchWait')) return '';
+    return `
+        <div><dt>Pitchers steamed</dt><dd>${s.steams}</dd></div>
+        <div><dt>Batches of two · batch size</dt><dd>${s.batches}</dd></div>`;
+  }
+
   function factsHTML(s, d) {
     if (!state.run.hasApp) return `
       <dl class="facts">
@@ -840,6 +929,7 @@ export function startGame({ config, lesson }) {
         <div><dt>Workers busy · utilization</dt><dd>${Math.round(s.utilization * 100)}%</dd></div>
         <div><dt>Most tickets waiting · peak queue</dt><dd>${s.peakQueue}</dd></div>
         <div><dt>Cost</dt><dd>$${designCost(d)}</dd></div>
+${batchFacts(s)}
       </dl>`;
     return `
       <dl class="facts">
@@ -849,6 +939,7 @@ export function startGame({ config, lesson }) {
         <div><dt>Workers busy · utilization</dt><dd>${Math.round(s.utilization * 100)}%</dd></div>
         <div><dt>Most tickets waiting · peak queues</dt><dd>${s.peakQueue} walk-in, ${s.peakMobileQueue} app</dd></div>
         <div><dt>Cost</dt><dd>$${designCost(d)}</dd></div>
+${batchFacts(s)}
       </dl>`;
   }
 
@@ -905,6 +996,7 @@ export function startGame({ config, lesson }) {
     if (act === 'minus') { d.baristas = Math.max(1, d.baristas - 1); designChanged(); }
     else if (act === 'plus') { d.baristas = Math.min(4, d.baristas + 1); designChanged(); }
     else if (act === 'rail') { d.rail = !d.rail; designChanged(); }
+    else if (act === 'batch') { d.batch = !d.batch; designChanged(); }
     else if (act === 'run') startRush();
     else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); renderChart(); }
     else if (act === 'next') setLevel(state.level + 1);
@@ -916,6 +1008,13 @@ export function startGame({ config, lesson }) {
     designChanged();
   });
   panel.addEventListener('input', ev => {
+    if (ev.target.id === 'batchWait') {
+      const minutes = Number(ev.target.value);
+      state.designs[state.level].batchWait = minutes * 60;
+      document.getElementById('waitLabel').textContent = minutes === 0 ? "Don't wait" : `Up to ${minutes} min`;
+      state.run = idleRun();
+      return;
+    }
     if (ev.target.id === 'mobileEvery') {
       state.designs[state.level].mobileEvery = Number(ev.target.value);
       document.getElementById('everyN').textContent = ordinal(Number(ev.target.value));

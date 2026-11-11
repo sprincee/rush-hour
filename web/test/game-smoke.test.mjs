@@ -7,6 +7,7 @@ import { startGame } from '../src/game/shop-game.mjs';
 import { summarize } from '../src/engine.mjs';
 import * as lesson2 from '../src/lessons/lesson2.mjs';
 import * as lesson3 from '../src/lessons/lesson3.mjs';
+import * as lesson4 from '../src/lessons/lesson4.mjs';
 import { config, run } from './helpers.mjs';
 
 // A 2D context that accepts every call and returns harmless values.
@@ -53,6 +54,7 @@ function fakePage() {
     act: name => fire('panel', 'click', button({ act: name })),
     choosePolicy: value => fire('panel', 'change', { name: 'policy', value }),
     setEvery: n => fire('panel', 'input', { id: 'mobileEvery', value: String(n) }),
+    setBatchWait: minutes => fire('panel', 'input', { id: 'batchWait', value: String(minutes) }),
     toggleXray: () => elements.xrayBtn.listeners.click.forEach(fn => fn()),
     runFrames(maxFrames, until) {
       let now = 1000;
@@ -88,6 +90,28 @@ test('every lesson 2 level plays to a debrief, and the verdict matches the engin
     const expected = lesson2.evaluate(level, level.start, summarize(run(level.start, { rush: level.rush }))).passed;
     assert.equal(verdict(html), expected ? 'pass' : 'fail', `level ${level.id}`);
   });
+});
+
+test('every lesson 4 level plays to a debrief, from the starting design and a winning one', () => {
+  // How to reach a winning design in each level, using only the level's own controls.
+  const winning = {
+    '4.1': { changes: p => p.act('batch'), design: { batch: true } },
+    '4.2': { changes: p => p.setBatchWait(3), design: { batchWait: 180 } },
+    '4.3': { changes: p => { p.act('batch'); p.choosePolicy('fifo'); }, design: { batch: true, policy: 'fifo' } },
+  };
+  for (const [i, level] of lesson4.LEVELS.entries()) {
+    for (const variant of ['start', 'winning']) {
+      const page = fakePage();
+      startGame({ config, lesson: lesson4 });
+      const w = winning[level.id];
+      const html = playLevel(page, i, variant === 'winning' ? w.changes : undefined);
+      const design = variant === 'winning' ? { ...level.start, ...w.design } : level.start;
+      const expected = lesson4.evaluate(level, design, summarize(run(design, { rush: level.rush }))).passed;
+      assert.equal(verdict(html), expected ? 'pass' : 'fail', `level ${level.id}, ${variant}`);
+      if (variant === 'winning') assert.equal(expected, true, `level ${level.id}: the winning design should pass`);
+      assert.ok(html.includes('Pitchers steamed'), `level ${level.id}: debrief reports pitchers`);
+    }
+  }
 });
 
 test('every lesson 3 level plays to a debrief with each rule it offers', () => {
