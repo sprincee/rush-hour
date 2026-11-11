@@ -1,7 +1,7 @@
 """Print one rush's exact order timings as JSON, for the game's calibration test.
 
 Runs inside the register Pod, which already has Python and the Redis client:
-    Get-Content scripts/record_orders.py -Raw | kubectl exec -i deploy/register -n rush-hour -- python - <rush-id> <rush> <baristas> <rule> <every> <config-hash>
+    Get-Content scripts/record_orders.py -Raw | kubectl exec -i deploy/register -n rush-hour -- python - <rush-id> <rush> <baristas> <rule> <every> <batch> <batch-wait> <config-hash>
 scripts/record-rush.ps1 does this for you.
 """
 
@@ -14,8 +14,10 @@ import redis
 
 
 def main() -> None:
-    rush_id, rush, baristas, rule, every, config_hash = sys.argv[1:7]
+    rush_id, rush, baristas, rule, every, batch, batch_wait, config_hash = sys.argv[1:9]
     prefix = f"rush-{rush_id}-"
+    with open(os.environ.get("SHOP_CONFIG", "/config/config.json"), encoding="utf-8") as f:
+        time_scale = json.load(f)["timeScale"]
     r = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
 
     orders = []
@@ -47,6 +49,8 @@ def main() -> None:
             "capacity": None,
             "policy": rule,
             "mobileEvery": int(every),
+            "batch": batch == "on",
+            "batchWait": float(batch_wait) * time_scale,  # Real seconds to shop seconds.
         },
         "orders": orders,
     }

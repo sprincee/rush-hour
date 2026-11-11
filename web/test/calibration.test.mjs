@@ -24,7 +24,10 @@ function simulate(design, rush) {
   while (run.events.length) {
     run.t = run.events[0].t;
     processEvents(run);
-    for (const b of run.baristas) if (b.ticket && !started.has(b.ticket.id)) started.set(b.ticket.id, b.startAt);
+    for (const b of run.baristas) {
+      if (!b.ticket || b.holding) continue; // A held latte hasn't started yet.
+      for (const tk of [b.ticket, b.partner]) if (tk && !started.has(tk.id)) started.set(tk.id, b.startAt);
+    }
   }
   return run.customers.map(c => ({ id: c.id, item: c.item, channel: c.channel, orderedAt: c.orderedAt, startedAt: started.get(c.id), readyAt: c.readyAt }));
 }
@@ -70,7 +73,7 @@ for (const file of recordings) {
     const realPeak = Math.max(...times.map(x => depthAt(realShop, x)));
     const simPeak = Math.max(...times.map(x => depthAt(sim, x)));
 
-    t.diagnostic(`${rush}, ${design.baristas} baristas, rule ${design.policy}${design.policy === 'weighted' ? ` every ${design.mobileEvery}` : ''}`);
+    t.diagnostic(`${rush}, ${design.baristas} baristas, rule ${design.policy}${design.policy === 'weighted' ? ` every ${design.mobileEvery}` : ''}${design.batch ? `, batching${design.batchWait ? ` with a ${design.batchWait / 60}-minute window` : ''}` : ''}`);
     for (const channel of ['walkin', 'mobile']) {
       const r = longest(realShop, channel), s = longest(sim, channel);
       if (s === 0 && r === 0) continue;

@@ -23,11 +23,15 @@ $baristas = $deployment.spec.replicas
 $containerEnv = $deployment.spec.template.spec.containers[0].env
 $rule = ($containerEnv | Where-Object name -eq 'TICKET_RULE').value
 $every = ($containerEnv | Where-Object name -eq 'MOBILE_EVERY').value
+$batch = ($containerEnv | Where-Object name -eq 'BATCH').value
+$batchWait = ($containerEnv | Where-Object name -eq 'BATCH_WAIT').value
 if (-not $rule) { $rule = 'fifo' }
 if (-not $every) { $every = '3' }
+if (-not $batch) { $batch = 'off' }
+if (-not $batchWait) { $batchWait = '0' }
 
 $json = Get-Content "$PSScriptRoot\record_orders.py" -Raw |
-    kubectl --context $Context exec -i -n rush-hour deploy/register -- python - $RushId $Rush $baristas $rule $every $configHash
+    kubectl --context $Context exec -i -n rush-hour deploy/register -- python - $RushId $Rush $baristas $rule $every $batch $batchWait $configHash
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Could not read the orders from Redis.' -ForegroundColor Red
     exit 1
@@ -41,7 +45,10 @@ if ($ready -ne $expected) {
     exit 1
 }
 
-$name = if ($rule -eq 'weighted') { "real-rush-$Rush-weighted$every.json" } else { "real-rush-$Rush-$rule.json" }
+$name = "real-rush-$Rush-$(if ($rule -eq 'weighted') { "weighted$every" } else { $rule })"
+if ($batch -eq 'on') { $name += '-batch' }
+if ([int]$batchWait -gt 0) { $name += "-wait$batchWait" }
+$name += '.json'
 $out = "$Root\web\test\fixtures\$name"
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
 [IO.File]::WriteAllText($out, $text, (New-Object Text.UTF8Encoding $false))

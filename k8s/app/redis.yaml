@@ -72,7 +72,7 @@ spec:
             - name: REDIS_ADDR
               value: redis://localhost:6379
             - name: REDIS_EXPORTER_CHECK_STREAMS
-              value: "line:walkin,line:mobile"
+              value: "line:walkin,line:mobile,line:batch-hold"
           ports:
             - name: metrics
               containerPort: 9121

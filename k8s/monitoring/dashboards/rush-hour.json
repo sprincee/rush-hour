@@ -55,7 +55,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(redis_stream_group_lag{stream=~\"line:walkin|line:mobile\",group=\"baristas\"})",
+          "expr": "sum(redis_stream_length{stream=~\"line:walkin|line:mobile\"}) - sum(redis_stream_group_messages_pending{stream=~\"line:walkin|line:mobile\",group=\"baristas\"})",
           "instant": true
         }
       ]
@@ -271,12 +271,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(redis_stream_group_lag{stream=~\"line:walkin|line:mobile\",group=\"baristas\"})",
+          "expr": "sum(redis_stream_length{stream=~\"line:walkin|line:mobile\"}) - sum(redis_stream_group_messages_pending{stream=~\"line:walkin|line:mobile\",group=\"baristas\"})",
           "legendFormat": "Waiting"
         },
         {
           "refId": "B",
-          "expr": "sum(redis_stream_group_messages_pending{stream=~\"line:walkin|line:mobile\",group=\"baristas\"})",
+          "expr": "sum(redis_stream_group_messages_pending{stream=~\"line:walkin|line:mobile|line:batch-hold\",group=\"baristas\"})",
           "legendFormat": "Being made"
         }
       ]
@@ -1095,6 +1095,98 @@
           "refId": "A",
           "instant": true,
           "expr": "100 * sum(increase(rush_order_total_wait_seconds_bucket{channel=\"mobile\",le=\"30.0\"}[$__range])) / sum(increase(rush_order_total_wait_seconds_count{channel=\"mobile\"}[$__range]))"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Pitchers steamed",
+      "description": "Lesson 4: one pitcher per latte, or one per batch of two lattes. Fewer pitchers for the same lattes means more batching.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 37
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "expr": "round(sum(increase(rush_pitchers_steamed_total[$__range])))"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Lattes per pitcher (batch size)",
+      "description": "Average batch size over the selected time range: 1 means no batching, 2 means every latte shared a pitcher.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 37
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "instant": true,
+          "expr": "(sum(increase(rush_pitchers_steamed_total{size=\"1\"}[$__range])) + 2 * sum(increase(rush_pitchers_steamed_total{size=\"2\"}[$__range]))) / sum(increase(rush_pitchers_steamed_total[$__range]))"
         }
       ]
     }

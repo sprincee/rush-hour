@@ -192,14 +192,19 @@ function takePartner(run) {
 }
 
 function tryBaristas(run, t) {
+  // A barista holding a lone latte gets first pick of any waiting latte, longest holder
+  // first, the way a barista at the steamer grabs the next latte ticket. The real
+  // baristas do the same: a free barista hands waiting lattes to holders before
+  // taking a ticket of its own.
+  const holders = run.baristas.filter(b => b.holding).sort((a, b) => a.holdUntil - b.holdUntil || a.i - b.i);
+  for (const b of holders) {
+    const partner = takePartner(run);
+    if (!partner) break;
+    b.holding = false;
+    startDrink(run, b, b.ticket, partner, t);
+  }
   for (const b of run.baristas) {
-    if (b.holding) {
-      // Waiting by the steamer: a second latte just showed up.
-      const partner = takePartner(run);
-      if (partner) { b.holding = false; startDrink(run, b, b.ticket, partner, t); }
-      continue;
-    }
-    if (b.ticket || b.reserved) continue;
+    if (b.holding || b.ticket || b.reserved) continue;
     const ticket = nextTicket(run, b);
     if (!ticket) continue;
     if (run.design.batch && batchable(run, ticket)) {

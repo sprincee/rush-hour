@@ -9,6 +9,10 @@
     Set how baristas pick the next ticket: fifo, walkin, mobile, or weighted.
 .PARAMETER Every
     For -Rule weighted: every Nth drink comes from the app rail.
+.PARAMETER Batch
+    Steam milk for two lattes at once. Use -Batch:$false to turn it off.
+.PARAMETER BatchWait
+    With -Batch: shop minutes a barista holds a lone latte, hoping a second one arrives.
 .PARAMETER KillBarista
     Force-kills one barista partway through. If it finishes its drink first, no
     order needs rescuing, so watch "Orders rescued" on the dashboard.
@@ -25,6 +29,8 @@ param(
     [ValidateRange(1, 4)][int]$Baristas,
     [ValidateSet('fifo', 'walkin', 'mobile', 'weighted')][string]$Rule,
     [ValidateRange(1, 10)][int]$Every = 3,
+    [switch]$Batch,
+    [ValidateRange(0, 6)][int]$BatchWait,
     [switch]$KillBarista,
     [switch]$Record
 )
@@ -69,12 +75,18 @@ if ($Baristas -and $Baristas -ne $replicas) {
     $replicas = $Baristas
     Wait-Baristas $replicas
 }
-if ($Rule) {
-    Write-Host "Baristas will use rule '$Rule'$(if ($Rule -eq 'weighted') { " (every $Every)" })." -ForegroundColor Cyan
-    Invoke-Kubectl set env deployment/barista -n rush-hour TICKET_RULE=$Rule MOBILE_EVERY=$Every | Out-Null
+# Settings change together in one rollout. 1 real second is 1 shop minute, so BATCH_WAIT
+# in real seconds is the batch window in shop minutes.
+$settingsChanges = @()
+if ($Rule) { $settingsChanges += "TICKET_RULE=$Rule", "MOBILE_EVERY=$Every" }
+if ($PSBoundParameters.ContainsKey('Batch')) { $settingsChanges += "BATCH=$(if ($Batch) { 'on' } else { 'off' })" }
+if ($PSBoundParameters.ContainsKey('BatchWait')) { $settingsChanges += "BATCH_WAIT=$BatchWait" }
+if ($settingsChanges) {
+    Write-Host "Baristas will use: $($settingsChanges -join ', ')." -ForegroundColor Cyan
+    Invoke-Kubectl set env deployment/barista -n rush-hour @settingsChanges | Out-Null
     Wait-Baristas $replicas
 }
-if ($Rule -or $Baristas) { Start-Sleep -Seconds 3 }  # Let new baristas join the consumer group.
+if ($settingsChanges -or $Baristas) { Start-Sleep -Seconds 3 }  # Let new baristas join the consumer group.
 
 # A finished Job can't be rerun, so remove the previous rush first.
 Invoke-Kubectl delete job rush -n $Namespace --ignore-not-found --wait=true | Out-Null

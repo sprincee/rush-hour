@@ -40,6 +40,12 @@ spec:
               value: fifo
             - name: MOBILE_EVERY
               value: "3"
+            # Steam milk for two lattes at once ("on" or "off"), and how many real
+            # seconds to hold a lone latte for a partner (1 real second = 1 shop minute).
+            - name: BATCH
+              value: "off"
+            - name: BATCH_WAIT
+              value: "0"
           volumeMounts:
             - name: shop-config
               mountPath: /config

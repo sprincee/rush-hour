@@ -174,6 +174,13 @@ One server wakes on demand and shuts down when idle, within a hard maximum of $3
 | Lesson 3.1, 3 baristas, walk-ins first | walk-in 7.1 / 6.9, app 19.9 / 19.8 min | 0.09 min |
 | Lesson 3.2, 3 baristas, walk-ins first (starvation) | walk-in 6.5 / 6.4, app 32.2 / 32.2 min | 0.08 min |
 | Lesson 3.2, 3 baristas, every 5th from the app | walk-in 11.5 / 11.4, app 26.3 / 26.2 min | 0.08 min |
+| Lesson 4.1, 2 baristas, batching | 15.7 / 15.7 min | 0.05 min |
+| Lesson 4.2, 2 baristas, batching with a 3-minute window | 6.1 / 6.0 min | 0.03 min |
+| Lesson 4.3, 3 baristas, walk-ins first, batching | walk-in 6.5 / 6.4, app 7.8 / 7.7 min | 0.10 min |
+
+(Lessons 2 and 3 were re-recorded on 2026-11-11 after the settings gained batching; the table shows the first lesson 3 recordings, and the new ones match to within 0.4 min.)
+
+**Batching on the cluster:** a Lua script (`CLAIM_LATTE` in `services/barista/main.py`) runs inside Redis as one step. It finds the oldest latte nobody has taken on either rail, skipping past other drinks, moves it to `line:batch-hold`, and hands it to one barista, so two baristas can't take the same latte and a crash can't lose it. Baristas holding a lone latte register in `batch:holders`. Before taking a ticket, a free barista hands waiting lattes to holders, longest-waiting first, and the script lets each holder receive only one. The engine follows the same rule, so holders get first pick in both. Batching deletes waiting entries from the middle of a stream, which makes Redis's consumer-group lag unreliable, so the dashboard counts waiting tickets as stream length minus tickets being made.
 
 The first lesson 2 recording, from 2026-11-10, is below:
 
