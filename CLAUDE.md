@@ -57,12 +57,12 @@ Kubernetes cluster (k3s)
 - Learners play in a browser simulator, freely and with no waiting line. The cluster handles real runs and checks the simulator. Full design: `docs/design.md`.
 - Observability uses kube-prometheus-stack, trimmed for k3s (`k8s/monitoring/values.yaml`). Measured peak on 2026-11-03: about 1 GiB across all Pods during a rush, not counting k3s itself. Single-node memory is still unmeasured, and a t4g.small (2 GB) looks too tight.
 - Hosting: local only until launch; then one server running k3s that wakes on demand, planned as a t4g.medium (roughly $3-5/month). It shuts down when idle, with a cooldown and a daily limit on hours. Lessons show a recorded real run while it wakes, and the simulator never depends on it. Confirm prices, memory, and start-up time at step 4.
+- Lesson site: Python + Jinja2 (`lessons/build.py`) builds static pages into `dist/`. JavaScript only runs the game, as plain ES modules with no framework or build step.
 
 ### Open decisions
 - Autoscaling: CPU-based HPA vs queue-length scaling with KEDA (queue length is the better lesson: "more people in line, more baristas").
 - How lessons show live data: embedded public Grafana panels vs periodic snapshots.
 - Deployment: plain manifests/Helm first; GitOps (Argo CD) later.
-- Lesson site generator: reuse the Worth Learning approach (Python + Jinja2, no JavaScript) unless a lesson truly needs it.
 
 ## Safety and cost guardrails (non-negotiable)
 - The public never sends traffic directly to the cluster. The button triggers a server-side rush with a fixed size and duration.
@@ -89,7 +89,7 @@ Kubernetes cluster (k3s)
 
 ## Where we left off (update at the end of each session)
 - Session 1 (2026-11-03): chose k3d, scaffolded the repo, created the empty local cluster (`k8s/k3d-cluster.yaml`), and agreed the design (`docs/design.md`). Roadmap step 1 is done: one command brings up the system, and a 50-order rush completes even with a barista killed partway through. Roadmap step 2 is built: kube-prometheus-stack, shop metrics, `redis_exporter`, and the "Rush Hour" dashboard. Its queries were checked against live data, but the owner still needs to look at the dashboard itself in a browser. Batch size waits for lesson 4.
-- Session 2 (2026-11-10): designed the game format with the owner (design-then-run levels, X-ray toggle, debrief; see `docs/design.md`). The lesson 2 mockup is `lessons/mockups/order-line.html`. Step 3, slice 1 is done: the engine and lesson 2 levels are modules in `web/src/`, with 16 tests in `web/test/` (run `npm test` in `web/`). Slice 2 is done: `shop/config.json` is shared by the game, register, baristas (per-drink prep times), and k6 (same arrival schedule via `web/src/arrivals.mjs`). The calibration test matches a recorded real rush almost exactly (see `docs/design.md`). Fixed a bug where drawing customers changed the game's results (postmortem 2026-11-10). Next: show the game's SLO-style goals on Grafana, slice 3 (the lesson page in the site generator), then lesson 3.
+- Session 2 (2026-11-10): designed the game format with the owner (design-then-run levels, X-ray toggle, debrief; see `docs/design.md`). The lesson 2 mockup is `lessons/mockups/order-line.html`. Step 3, slice 1 is done: the engine and lesson 2 levels are modules in `web/src/`, with 16 tests in `web/test/` (run `npm test` in `web/`). Slice 2 is done: `shop/config.json` is shared by the game, register, baristas (per-drink prep times), and k6 (same arrival schedule via `web/src/arrivals.mjs`). The calibration test matches a recorded real rush almost exactly (see `docs/design.md`). Fixed a bug where drawing customers changed the game's results (postmortem 2026-11-10). The Grafana dashboard has a "Goals (SLOs)" row matching the game's goals exactly. Slice 3 is done: `lessons/build.py` builds the home page and lesson 2 from `web/src` (`.\scripts\site.ps1` to preview). Next: lesson 3 (mobile orders vs walk-ins), designed with the owner first.
 - Known items: `CPUThrottlingHigh` goes pending on low-limit containers (never fired, and rushes weren't slowed; revisit the limits). `-KillBarista` may not trigger a rescue, since the barista can sometimes finish its drink before it's killed. Before AWS: add a NetworkPolicy for Redis, build images for ARM as well, measure memory on a single node, and trim the metrics kept from the kubelet and API server.
 - `Notes.md` holds the owner's personal learning notes. It's gitignored.
 

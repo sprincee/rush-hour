@@ -1,0 +1,77 @@
+# The course home page. A lesson with a `page` is playable; the rest show as coming soon.
+title = "Rush Hour"
+heading = "Learn system design by running a coffee shop"
+tagline = "Design the shop, send in the morning rush, and X-ray it to see the software system behind it. Every lesson is also checked against a real Kubernetes cluster."
+
+[[groups]]
+id = "A"
+name = "The flow"
+
+  [[groups.lessons]]
+  number = 1
+  concept = "Async vs sync"
+  coffee = "Order at the register, then your name gets called"
+
+  [[groups.lessons]]
+  number = 2
+  concept = "Queues"
+  coffee = "The order line"
+  page = "order-line"
+
+  [[groups.lessons]]
+  number = 3
+  concept = "Priority queues"
+  coffee = "Mobile orders vs walk-ins"
+
+  [[groups.lessons]]
+  number = 4
+  concept = "Batching"
+  coffee = "Steaming milk for several drinks at once"
+
+[[groups]]
+id = "B"
+name = "The rush"
+
+  [[groups.lessons]]
+  number = 5
+  concept = "Autoscaling"
+  coffee = "Calling in more baristas"
+
+  [[groups.lessons]]
+  number = 6
+  concept = "Rate limiting"
+  coffee = "No ordering a box of coffee during the rush"
+
+  [[groups.lessons]]
+  number = 7
+  concept = "Backpressure"
+  coffee = "Line out the door, pause mobile orders"
+
+  [[groups.lessons]]
+  number = 8
+  concept = "Caching"
+  coffee = "The pastry case"
+
+[[groups]]
+id = "C"
+name = "When things go wrong"
+
+  [[groups.lessons]]
+  number = 9
+  concept = "Idempotency"
+  coffee = "Customer taps order twice, still one latte"
+
+  [[groups.lessons]]
+  number = 10
+  concept = "Retries and backoff"
+  coffee = "\"Is my drink ready?\" every two seconds"
+
+  [[groups.lessons]]
+  number = 11
+  concept = "Health checks"
+  coffee = "New barista clocks in but isn't trained yet"
+
+  [[groups.lessons]]
+  number = 12
+  concept = "Graceful degradation"
+  coffee = "Espresso machine breaks, serve drip"

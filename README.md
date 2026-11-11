@@ -18,6 +18,8 @@ You need Docker Desktop (running), [k3d](https://k3d.io), `kubectl`, and
 .\scripts\rush.ps1 -KillBarista # Same, but kill a barista partway through
 .\scripts\rush.ps1 -Record      # Send a rush and save it for the game's calibration test
 .\scripts\grafana.ps1           # Open Grafana's "Rush Hour" dashboard tunnel and copy the password
+.\scripts\site.ps1              # Build the course site and serve it at http://127.0.0.1:8080
+cd web; npm test                # Engine, level, and calibration tests
 k3d cluster delete rush-hour    # Remove everything
 ```
 
@@ -41,5 +43,5 @@ seconds.
 | `k8s/monitoring/` | Settings for Prometheus, Grafana, and Alertmanager, plus the dashboard |
 | `scripts/` | Commands to bring the system up and send a rush |
 | `web/` | The browser game: the shop engine, lesson levels, and their tests (`npm test`) |
-| `lessons/` | Lesson content and the site generator. `lessons/mockups/` holds design mockups |
+| `lessons/` | The site generator (`build.py`), page templates, and lesson text (`content/*.toml`). `mockups/` holds design mockups |
 | `docs/` | The design and postmortems of what broke, including on purpose |

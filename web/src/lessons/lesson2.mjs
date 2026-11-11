@@ -47,6 +47,37 @@ export const LEVELS = [
   },
 ];
 
+// Parts from later lessons, shown as locked cards so players see what's coming.
+export const LOCKED = [
+  { name: 'Mobile ordering', sys: 'Priority queue', lesson: 'Lesson 3' },
+  { name: 'Batch the milk', sys: 'Batching', lesson: 'Lesson 4' },
+  { name: 'Second register', sys: 'Load balancer', lesson: 'Later' },
+  { name: 'Pastry case', sys: 'Cache', lesson: 'Lesson 8' },
+];
+
+// Drinks per minute: baristas divided by the average drink time (about 2.55 shop minutes).
+const throughput = d => (d.baristas / 2.55).toFixed(1);
+const mins = s => s.longestWaitMin.toFixed(1);
+
+// What happened, in system design terms. s.ok is whether every goal was met.
+LEVELS[0].explain = (d, s) => {
+  if (!d.rail) return `Every request that arrived while all ${d.baristas} barista${d.baristas > 1 ? 's were' : ' was'} busy got a <strong>503</strong>. The workers weren't slow: they were busy ${Math.round(s.utilization * 100)}% of the time. The problem is that a request had nowhere to wait. Adding baristas costs $${COST.barista} each and only saves a few more people. What could hold an order until someone is free?`;
+  return `The rail held every order until a barista was free, so nobody was turned away. Look at the longest wait though: <strong>${mins(s)} minutes</strong>. The queue saved everyone, but it didn't make anyone faster.`;
+};
+LEVELS[1].explain = (d, s) => {
+  if (!d.rail) return `Without the rail, ${s.rejected} customers were turned away. Keep the queue, and think about what makes it drain faster.`;
+  if (!s.ok) return `Everyone was served, but the longest wait was <strong>${mins(s)} minutes</strong>. ${d.baristas} baristas finish about ${throughput(d)} drinks a minute, and ${s.peakQueue} tickets piled up. The queue can only drain as fast as your workers finish jobs.`;
+  return `${d.baristas} baristas finish about ${throughput(d)} drinks a minute, so the rail drained in time and the longest wait was <strong>${mins(s)} minutes</strong>. A queue holds work. Workers do it.`;
+};
+LEVELS[2].explain = (d, s) => {
+  if (!d.rail) return `Without the rail, ${s.rejected} customers were turned away. You need a queue, just not an endless one.`;
+  const long = s.longestWaitMin > 20, many = s.rejected > 25;
+  if (long && many) return 'Both goals missed. Try more baristas, then tune the rail size.';
+  if (long) return `Your rail let ${s.peakQueue} tickets pile up. At about ${throughput(d)} drinks a minute, the last ticket waited <strong>${mins(s)} minutes</strong>. A smaller rail turns people away sooner instead of making them wait. More baristas let you keep a bigger rail.`;
+  if (many) return `The rail filled up and turned away <strong>${s.rejected}</strong> customers. A bigger rail, or more baristas to drain it faster, would keep more of them.`;
+  return `A rail of ${d.capacity} with ${d.baristas} barista${d.baristas > 1 ? 's' : ''} kept every wait under 20 minutes and turned away ${s.rejected}. That's the trade-off a queue limit makes: a quick "sorry, we're full" for some people, so nobody waits forever.`;
+};
+
 /** Did a design pass a level? Budget is checked here too, since the game blocks over-budget runs. */
 export function evaluate(level, design, summary) {
   const goals = level.goals.map(g => ({ label: g.label, ok: g.ok(summary) }));

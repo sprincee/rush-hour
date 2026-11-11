@@ -1,0 +1,18 @@
+{% extends "base.html.j2" %}
+{% block title %}{{ lesson.heading }} · Rush Hour{% endblock %}
+{% block description %}{{ lesson.description }}{% endblock %}
+{% block body %}
+{% include "_shop_game.html.j2" %}
+<script type="module">
+  import { startGame } from './assets/js/game/shop-game.mjs';
+  import * as lesson from './assets/js/lessons/{{ lesson.module }}';
+  try {
+    const response = await fetch('assets/shop-config.json');
+    if (!response.ok) throw new Error(`shop settings returned ${response.status}`);
+    startGame({ config: await response.json(), lesson });
+  } catch (err) {
+    document.getElementById('caption').textContent = `The shop couldn't open: ${err.message}. Try reloading the page.`;
+    throw err;
+  }
+</script>
+{% endblock %}

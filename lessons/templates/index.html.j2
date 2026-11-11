@@ -1,0 +1,54 @@
+{% extends "base.html.j2" %}
+{% block title %}{{ course.title }}{% endblock %}
+{% block description %}{{ course.tagline }}{% endblock %}
+{% block head %}
+<style>
+  .groups { display: grid; gap: 22px; }
+  .group h2 { font: 800 1.3rem/1.2 var(--font-display); margin: 0 0 10px; }
+  .group h2 span { font: 600 0.72rem/1 var(--font-mono); color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+  .lessons { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .lesson { display: grid; gap: 4px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0; }
+  a.lesson:hover { border-color: var(--accent); }
+  .lesson .num { font: 600 0.7rem/1 var(--font-mono); color: var(--muted); letter-spacing: 0.06em; display: flex; justify-content: space-between; gap: 8px; }
+  .lesson .num b { color: var(--accent); font-weight: 600; }
+  .lesson .concept { font: 800 1.05rem/1.2 var(--font-display); }
+  .lesson .coffee { color: var(--ink-2); font-size: 0.92rem; }
+  .lesson.soon { opacity: 0.6; }
+  @media (max-width: 640px) { .lessons { grid-template-columns: minmax(0, 1fr); } }
+</style>
+{% endblock %}
+{% block body %}
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>{{ course.title }}</a>
+    <span class="pill">Preview</span>
+  </header>
+  <section class="intro">
+    <p class="eyebrow">An interactive system design course</p>
+    <h1>{{ course.heading }}</h1>
+    <p class="lede">{{ course.tagline }}</p>
+  </section>
+  <div class="groups">
+  {% for group in course.groups %}
+    <section class="group">
+      <h2><span>Group {{ group.id }}</span>{{ group.name }}</h2>
+      <ol class="lessons">
+      {% for l in group.lessons %}
+        <li>
+        {% if l.get('page') %}
+          <a class="lesson" href="{{ l.page }}.html">
+        {% else %}
+          <div class="lesson soon">
+        {% endif %}
+            <span class="num"><span>LESSON {{ l.number }}</span>{% if l.get('page') %}<b>PLAY</b>{% else %}<span>SOON</span>{% endif %}</span>
+            <span class="concept">{{ l.concept }}</span>
+            <span class="coffee">{{ l.coffee }}</span>
+        {% if l.get('page') %}</a>{% else %}</div>{% endif %}
+        </li>
+      {% endfor %}
+      </ol>
+    </section>
+  {% endfor %}
+  </div>
+</div>
+{% endblock %}

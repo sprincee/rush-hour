@@ -158,6 +158,124 @@
       "targets": [
         { "refId": "A", "expr": "sum(kube_deployment_status_replicas_available{namespace=\"rush-hour\",deployment=\"barista\"})", "legendFormat": "Baristas" }
       ]
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Goals (SLOs): the same goals the game uses, over the selected time range",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Served within 20 min (goal: 100%)",
+      "description": "Level 2.3's goal: nobody waits more than 20 shop minutes, from ordering to drink ready. One real second is one shop minute. Counted exactly from the wait histogram's 20-second bucket.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 23 },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 0, "min": 0, "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 100 }] },
+          "mappings": [
+            { "type": "value", "options": { "100": { "text": "Met · 100%" } } },
+            { "type": "special", "options": { "match": "nan", "result": { "text": "No rush in range", "color": "text" } } },
+            { "type": "special", "options": { "match": "null", "result": { "text": "No rush in range", "color": "text" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "instant": true, "expr": "100 * sum(increase(rush_order_total_wait_seconds_bucket{le=\"20.0\"}[$__range])) / sum(increase(rush_order_total_wait_seconds_count[$__range]))" }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Served within 40 min (goal: 100%)",
+      "description": "Level 2.2's goal: nobody waits more than 40 shop minutes. Counted from the wait histogram's 40-second bucket.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 23 },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 0, "min": 0, "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 100 }] },
+          "mappings": [
+            { "type": "value", "options": { "100": { "text": "Met · 100%" } } },
+            { "type": "special", "options": { "match": "nan", "result": { "text": "No rush in range", "color": "text" } } },
+            { "type": "special", "options": { "match": "null", "result": { "text": "No rush in range", "color": "text" } } }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "instant": true, "expr": "100 * sum(increase(rush_order_total_wait_seconds_bucket{le=\"40.0\"}[$__range])) / sum(increase(rush_order_total_wait_seconds_count[$__range]))" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Turned away (goal: 0)",
+      "description": "Orders the register couldn't accept, answered with 503. Level 2.1's goal is zero.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 23 },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "mappings": [{ "type": "value", "options": { "0": { "text": "Met · 0" } } }]
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "instant": true, "expr": "round(sum(increase(rush_orders_rejected_total[$__range]))) or vector(0)" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Drinks made",
+      "description": "Drinks finished over the selected time range. A full rush is 50.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 23 },
+      "options": { "colorMode": "none", "graphMode": "none", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "text" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "instant": true, "expr": "round(sum(increase(rush_orders_completed_total[$__range])))" }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Wait from order to drink, against the goals",
+      "description": "The dashed lines are the game's goals: 20 and 40 shop minutes. The 95th percentile means 95% of customers waited less than this. Estimated from histogram buckets over 1 minute.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 28 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: min",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "transparent", "value": null }, { "color": "#8a8f98", "value": 20 }, { "color": "#8a8f98", "value": 40 }] },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 0, "showPoints": "never", "lineInterpolation": "linear", "spanNulls": false, "thresholdsStyle": { "mode": "dashed" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Typical customer (median)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }] },
+          { "matcher": { "id": "byName", "options": "Unlucky customer (95th percentile)" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#d95926" } }] }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(rush_order_total_wait_seconds_bucket[1m])))", "legendFormat": "Typical customer (median)" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(rush_order_total_wait_seconds_bucket[1m])))", "legendFormat": "Unlucky customer (95th percentile)" }
+      ]
     }
   ]
 }

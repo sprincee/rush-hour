@@ -1,0 +1,8 @@
+# Lesson 2's page. Levels, goals and debrief text live in web/src/lessons/lesson2.mjs.
+slug = "order-line"
+module = "lesson2.mjs"
+eyebrow = "Group A · The flow · Lesson 2 of 12"
+heading = "The order line"
+description = "Design a coffee shop's system, run the 8:05 rush, and X-ray it to see the queue behind the ticket rail."
+lede = "You run the morning shift. Design the shop, then send in the 8:05 rush and see if your design holds up. Press X-ray at any time to see the same shop as a software system."
+foot = "The rush runs on an event-based simulation: every order, ticket and drink happens at an exact time, so the same design always gives the same result. It's checked against real rushes on the Rush Hour Kubernetes cluster."

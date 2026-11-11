@@ -1,0 +1,63 @@
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>Rush Hour</a>
+    <span class="pill">Preview</span>
+  </header>
+
+  <section class="intro">
+    <p class="eyebrow">{{ lesson.eyebrow }}</p>
+    <h1>{{ lesson.heading }}</h1>
+    <p class="lede">{{ lesson.lede }}</p>
+  </section>
+
+  <nav aria-label="Levels">
+    <ol class="levels" id="levels"></ol>
+  </nav>
+
+  <section class="stage" aria-label="The coffee shop">
+    <div class="scene" id="scene">
+      <canvas id="shop" role="img" aria-label="An illustrated coffee shop."></canvas>
+      <div class="chip"><span id="clock">8:05 am</span><small>Shop clock · 60× faster</small></div>
+      <button type="button" class="xray" id="xrayBtn" aria-pressed="true"><span class="eye" aria-hidden="true"></span><span id="xrayLabel">X-ray on</span></button>
+    </div>
+    <div class="key" id="key" aria-label="X-ray key">
+      <span><i style="background:#f2b233"></i>Request arriving at the API</span>
+      <span><i style="background:#5aa2f0"></i>Waiting in the queue</span>
+      <span><i style="background:#f07b3f"></i>Being worked on</span>
+      <span><i style="background:#2fbf86"></i>Done: 200 OK</span>
+      <span><i style="background:#ef5b55"></i>Rejected: 503</span>
+    </div>
+    <div class="controls">
+      <div class="phase" id="phase" aria-label="Level progress"></div>
+      <div class="group">
+        <button class="btn ghost" id="pause" type="button" hidden>Pause</button>
+        <div class="seg" role="radiogroup" aria-label="Speed">
+          <input type="radio" name="speed" id="speed-1" value="1"><label for="speed-1">1×</label>
+          <input type="radio" name="speed" id="speed-2" value="2" checked><label for="speed-2">2×</label>
+          <input type="radio" name="speed" id="speed-4" value="4"><label for="speed-4">4×</label>
+        </div>
+      </div>
+    </div>
+    <dl class="stats">
+      <div><dt>Served <em>· 200 OK</em></dt><dd id="st-served">0</dd></div>
+      <div><dt>Turned away <em>· 503</em></dt><dd id="st-rejected">0</dd></div>
+      <div><dt>Longest wait <em>· latency</em></dt><dd id="st-wait">–</dd></div>
+      <div><dt>On the rail <em>· queue depth</em></dt><dd id="st-queue">0</dd></div>
+    </dl>
+    <p class="caption" id="caption" aria-live="polite"></p>
+  </section>
+
+  <section class="lower">
+    <div class="card" id="panel"></div>
+    <div class="card chart">
+      <div class="chart-head">
+        <h2>Queue depth</h2>
+        <p class="note" style="margin:0">Tickets waiting on the rail, or in software terms, messages waiting in the queue.</p>
+        <div class="legend" id="legend"></div>
+      </div>
+      <svg id="chart" viewBox="0 0 600 286" role="img" aria-label="Line chart of queue depth over shop time."></svg>
+    </div>
+  </section>
+
+  <p class="foot">{{ lesson.foot }}</p>
+</div>
