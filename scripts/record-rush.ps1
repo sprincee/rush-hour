@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 $text = ($json -join "`n") + "`n"
 $recording = $text | ConvertFrom-Json
-$expected = (Get-Content "$Root\shop\config.json" -Raw | ConvertFrom-Json).rush.customers
+$expected = (Get-Content "$Root\shop\config.json" -Raw | ConvertFrom-Json).rushes.'lesson-2'.customers
 $ready = @($recording.orders | Where-Object { $_.status -eq 'ready' }).Count
 if ($ready -ne $expected) {
     Write-Host "Not saving: found $ready ready orders for rush $RushId, expected $expected." -ForegroundColor Red

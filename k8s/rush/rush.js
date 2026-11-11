@@ -9,7 +9,7 @@ import { buildSchedule } from './arrivals.js';
 // The rush comes only from files in the repo, so nothing outside it can make it bigger.
 const config = JSON.parse(open('./config.json'));
 const RUSH_ID = open('./rush-id').trim();
-const SCHEDULE = buildSchedule(config);
+const SCHEDULE = buildSchedule(config, 'lesson-2');
 const TIME_SCALE = config.timeScale; // Shop seconds per real second.
 
 const REGISTER = 'http://register.rush-hour.svc.cluster.local';

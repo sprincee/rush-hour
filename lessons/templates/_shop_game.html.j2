@@ -26,6 +26,7 @@
       <span><i style="background:#f07b3f"></i>Being worked on</span>
       <span><i style="background:#2fbf86"></i>Done: 200 OK</span>
       <span><i style="background:#ef5b55"></i>Rejected: 503</span>
+      <span id="key-shape" hidden>Circles are walk-ins, diamonds are app orders</span>
     </div>
     <div class="controls">
       <div class="phase" id="phase" aria-label="Level progress"></div>
@@ -41,8 +42,8 @@
     <dl class="stats">
       <div><dt>Served <em>· 200 OK</em></dt><dd id="st-served">0</dd></div>
       <div><dt>Turned away <em>· 503</em></dt><dd id="st-rejected">0</dd></div>
-      <div><dt>Longest wait <em>· latency</em></dt><dd id="st-wait">–</dd></div>
-      <div><dt>On the rail <em>· queue depth</em></dt><dd id="st-queue">0</dd></div>
+      <div><dt id="lb-wait">Longest wait <em>· latency</em></dt><dd id="st-wait">–</dd></div>
+      <div><dt id="lb-queue">On the rail <em>· queue depth</em></dt><dd id="st-queue">0</dd></div>
     </dl>
     <p class="caption" id="caption" aria-live="polite"></p>
   </section>

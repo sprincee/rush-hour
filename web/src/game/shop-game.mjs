@@ -1,7 +1,7 @@
 // The shop game: design a system, run the rush, and X-ray the shop to see the system behind it.
 // Lesson-specific levels, goals and debrief text come from a lesson module (web/src/lessons/).
 // The simulation itself is the tested engine in ../engine.mjs.
-import { createRun, processEvents, sample, completeRun, summarize } from '../engine.mjs';
+import { createRun, processEvents, sample, completeRun, summarize, POLICIES } from '../engine.mjs';
 import { menuById } from '../arrivals.mjs';
 
 /**
@@ -23,7 +23,22 @@ export function startGame({ config, lesson }) {
   const REGISTER_SPOT = { x: 236, y: 500 };
   const PICKUP_SPOT = { x: 846, y: 404 };
   const CASHIER_X = 232;
-  const RAIL = { x0: 354, y: 156, step: 20, slots: 25 };
+  const RAIL_FULL = { x0: 354, y: 156, step: 20, slots: 25 };
+  // Lessons with app orders split the rail: walk-in tickets on the left, app tickets on the right.
+  const RAIL_SPLIT = { x0: 354, y: 156, step: 20, slots: 12 };
+  const APP_RAIL = { x0: 662, y: 156, step: 20, slots: 11 };
+  const APP_PRINTER = { x: 616, y: 128 };
+  const APP_TRAVEL_SECONDS = 600; // App customers walk in about 10 shop minutes after ordering.
+  let RAIL = RAIL_FULL;
+  const POLICY_HELP = {
+    fifo: 'Whichever ticket printed first, from either rail.',
+    walkin: 'Always take a walk-in ticket if there is one.',
+    mobile: 'Always take an app ticket if there is one.',
+    weighted: 'Mostly walk-ins, but every Nth drink comes from the app rail.',
+  };
+  const ordinal = n => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+  // App customers are still on their way until about 10 shop minutes after ordering.
+  const offstage = (run, p) => p.state === 'outside' || p.state === 'gone' || (p.channel === 'mobile' && run.t < p.arriveAt + APP_TRAVEL_SECONDS);
   const WANDS = [{ x: 512, y: 272 }, { x: 658, y: 272 }];
   const BARISTA_SLOTS = { 1: [468], 2: [468, 702], 3: [436, 585, 734], 4: [412, 528, 644, 760] };
   const COLORS = { arriving: '#f2b233', queued: '#5aa2f0', working: '#f07b3f', done: '#2fbf86', rejected: '#ef5b55' };
@@ -56,18 +71,35 @@ export function startGame({ config, lesson }) {
     run: null, summary: null, steam: [], hover: null, cssWidth: 1000,
   };
 
+  function makeRun(d) {
+    const run = createRun(d, { config, look, rush: LEVELS[state.level].rush });
+    run.hasApp = run.customers.some(c => c.channel === 'mobile');
+    RAIL = run.hasApp ? RAIL_SPLIT : RAIL_FULL;
+    document.getElementById('lb-wait').innerHTML = run.hasApp ? 'Longest wait <em>· walk-in / app</em>' : 'Longest wait <em>· latency</em>';
+    document.getElementById('lb-queue').innerHTML = run.hasApp ? 'On the rails <em>· walk-in / app</em>' : 'On the rail <em>· queue depth</em>';
+    document.getElementById('key-shape').hidden = !run.hasApp;
+    return run;
+  }
+
   function idleRun() {
-    const d = state.designs[state.level];
-    const run = createRun(d, { config, look });
+    const run = makeRun(state.designs[state.level]);
     run.idle = true;
     return run;
+  }
+
+  function spawnTicket(t) {
+    const from = t.channel === 'mobile' ? APP_PRINTER : { x: 282, y: 272 };
+    t.x = from.x; t.y = from.y; t.tilt = (((t.id * 37) % 7) - 3) * 0.035;
   }
 
   // ---------- Visual reactions to engine events ----------
   function onEvent(kind, c, extra) {
     const run = state.run;
     const t = run.t;
-    if (kind === 'accepted') {
+    if (kind === 'accepted' && c.channel === 'mobile') {
+      run.pops.push({ text: '202 · app order', x: APP_PRINTER.x, y: 104, color: COLORS.done, born: performance.now() });
+      run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()} in the app. <b>→ The request skipped the register and went straight to the app queue (line:mobile).</b>`;
+    } else if (kind === 'accepted') {
       run.pops.push({ text: '202 Accepted', x: 246, y: 214, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()}. <b>→ API replied 202 Accepted${run.design.rail ? ' and added a message to the queue' : ' and handed the job to a free worker'}.</b>`;
     } else if (kind === 'rejected') {
@@ -272,12 +304,12 @@ export function startGame({ config, lesson }) {
   function drawTicket(c, t) {
     c.save(); c.translate(t.x, t.y); c.rotate(t.tilt);
     c.fillStyle = 'rgba(40, 20, 10, 0.2)'; c.fillRect(-7, 2, 18, 28);
-    c.fillStyle = '#fffdf6'; c.fillRect(-9, 0, 18, 28);
+    c.fillStyle = t.channel === 'mobile' ? '#e6f0fc' : '#fffdf6'; c.fillRect(-9, 0, 18, 28);
     c.fillStyle = '#8e959b'; c.fillRect(-3, -3, 6, 4);
     c.fillStyle = '#2a1d17'; c.textAlign = 'center';
     c.font = "600 7px 'IBM Plex Mono', monospace"; c.fillText('#' + t.id, 0, 10);
     c.font = "500 5px 'IBM Plex Mono', monospace"; c.fillText(menu[t.item].short, 0, 18);
-    c.fillStyle = '#b8792f'; c.fillRect(-6, 22, 12, 1.5);
+    c.fillStyle = t.channel === 'mobile' ? '#2a78d6' : '#b8792f'; c.fillRect(-6, 22, 12, 1.5);
     c.restore();
   }
 
@@ -306,6 +338,10 @@ export function startGame({ config, lesson }) {
     c.fillStyle = p.skin; circle(c, 0, -57, 9.5); c.fill();
     c.fillStyle = p.hair; c.beginPath(); c.arc(0, -58.5, 9.9, Math.PI * 0.95, Math.PI * 2.05); c.fill();
     if (p.hasCup) drawCup(c, 15, -26, 1);
+    else if (p.channel === 'mobile' && p.state !== 'walkout') {
+      c.fillStyle = '#1d1f24'; rr(c, 10, -38, 8, 13, 2); c.fill();
+      c.fillStyle = '#8fc3ff'; c.fillRect(11.5, -36.5, 5, 9);
+    }
     if (p.state === 'walkout') {
       c.fillStyle = 'rgba(255, 252, 246, 0.95)'; rr(c, -11, -92, 22, 18, 6); c.fill();
       c.beginPath(); c.moveTo(-3, -74); c.lineTo(3, -74); c.lineTo(0, -69); c.closePath(); c.fill();
@@ -364,7 +400,11 @@ export function startGame({ config, lesson }) {
 
     // Arrows first, so boxes sit on top of them
     arrow(c, 236, 468, 236, 312, now);
-    if (d.rail) {
+    if (run.hasApp) {
+      arrow(c, 306, 250, 336, 196, now);
+      arrow(c, 760, 70, 760, 112, now);
+      xs.forEach(x => { arrow(c, 470, 204, x - 8, 214, now); arrow(c, 760, 204, x + 8, 214, now); });
+    } else if (d.rail) {
       arrow(c, 306, 250, 336, 196, now);
       xs.forEach(x => arrow(c, x, 204, x, 214, now));
     } else {
@@ -379,7 +419,26 @@ export function startGame({ config, lesson }) {
       c.fillText('POST /orders', 178, 272); c.fillText(d.rail ? '→ 202 Accepted' : '→ 202 or 503', 178, 288);
     }
 
-    if (d.rail) {
+    if (run.hasApp) {
+      node(c, 334, 112, 276, 92, 'Walk-in queue', 'line:walkin · from the register');
+      node(c, 620, 112, 276, 92, 'App queue', 'line:mobile · from phones');
+      run.rail.slice(0, RAIL.slots).forEach(t => { c.fillStyle = COLORS.queued; rr(c, (t.x ?? RAIL.x0) - 7, 159, 14, 22, 3); c.fill(); });
+      run.mobileRail.slice(0, APP_RAIL.slots).forEach(t => {
+        const x = t.x ?? APP_RAIL.x0;
+        c.fillStyle = COLORS.queued; c.beginPath(); c.moveTo(x, 157); c.lineTo(x + 8, 170); c.lineTo(x, 183); c.lineTo(x - 8, 170); c.closePath(); c.fill();
+      });
+      c.textAlign = 'right'; c.fillStyle = '#eef5fd';
+      c.font = `800 ${big ? 20 : 14}px 'Bricolage Grotesque', sans-serif`;
+      c.fillText(`${run.rail.length} waiting`, 600, 134);
+      c.fillText(`${run.mobileRail.length} waiting`, 886, 134);
+      c.textAlign = 'left';
+      c.font = `800 ${big ? 20 : 13}px 'Bricolage Grotesque', sans-serif`; c.fillStyle = '#eef5fd';
+      c.fillText('Phones', 776, 62);
+      if (!big) { c.font = "500 10.5px 'IBM Plex Mono', monospace"; c.fillStyle = '#a9c4e0'; c.fillText('app clients', 776, 76); }
+      c.textAlign = 'center'; c.font = `700 ${big ? 18 : 13}px 'IBM Plex Mono', monospace`; c.fillStyle = '#ffd9a0';
+      c.fillText(`Rule: ${POLICIES[d.policy]}${d.policy === 'weighted' ? ` (every ${ordinal(d.mobileEvery)})` : ''}`, 585, 334);
+      c.textAlign = 'left';
+    } else if (d.rail) {
       const limited = Number.isFinite(d.capacity);
       node(c, 334, 112, 562, 92, 'Queue', limited ? `the ticket rail · Redis Stream · holds ${d.capacity}` : 'the ticket rail · Redis Stream · no limit');
       if (limited) {
@@ -422,12 +481,18 @@ export function startGame({ config, lesson }) {
     if (!big) { c.font = "500 10.5px 'IBM Plex Mono', monospace"; c.fillStyle = '#a9c4e0'; c.fillText('each dot is one request', 40, 418); }
 
     run.customers.forEach(p => {
-      if (p.state === 'outside' || p.state === 'gone') return;
+      if (offstage(run, p)) return;
       const al = clamp((p.y - 312) / 38, 0, 1);
       if (al <= 0) return;
       c.globalAlpha = a * al;
       c.fillStyle = requestColor(run, p);
-      circle(c, p.x, p.y - 14, big ? 11 : 8); c.fill();
+      const r = big ? 11 : 8;
+      if (p.channel === 'mobile') {
+        const rd = r * 1.25;
+        c.beginPath(); c.moveTo(p.x, p.y - 14 - rd); c.lineTo(p.x + rd, p.y - 14); c.lineTo(p.x, p.y - 14 + rd); c.lineTo(p.x - rd, p.y - 14); c.closePath(); c.fill();
+      } else {
+        circle(c, p.x, p.y - 14, r); c.fill();
+      }
       c.strokeStyle = 'rgba(7, 13, 22, 0.9)'; c.lineWidth = 2; c.stroke();
       if (p.state === 'walkout') {
         c.strokeStyle = '#fff'; c.lineWidth = 2;
@@ -464,7 +529,17 @@ export function startGame({ config, lesson }) {
       ctx.fillText('NO WAITING TODAY', 615, 174); ctx.textAlign = 'left';
     } else {
       ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.fillStyle = 'rgba(70, 48, 32, 0.75)';
-      ctx.fillText(Number.isFinite(run.design.capacity) ? `TICKET RAIL · HOLDS ${run.design.capacity}` : 'TICKET RAIL', 344, 139);
+      if (run.hasApp) {
+        ctx.fillText('WALK-IN RAIL', 344, 139);
+        ctx.fillText('APP RAIL', 652, 139);
+        rr(ctx, 598, 110, 36, 30, 5); ctx.fillStyle = '#34353c'; ctx.fill();
+        ctx.fillStyle = '#17171a'; ctx.fillRect(604, 136, 24, 2);
+        ctx.fillStyle = '#7fd1c1'; circle(ctx, 627, 116, 2); ctx.fill();
+        ctx.fillStyle = '#e6f0fb'; ctx.font = "700 8px 'IBM Plex Mono', monospace"; ctx.textAlign = 'center';
+        ctx.fillText('APP', 614, 129); ctx.textAlign = 'left';
+      } else {
+        ctx.fillText(Number.isFinite(run.design.capacity) ? `TICKET RAIL · HOLDS ${run.design.capacity}` : 'TICKET RAIL', 344, 139);
+      }
     }
     drawStaff(ctx, CASHIER_X, now, !!run.ordering, 0, '#c68b62', '#2b1d16');
     run.baristas.forEach((b, i) => {
@@ -488,6 +563,13 @@ export function startGame({ config, lesson }) {
       drawCup(ctx, 800 + (k % 5) * 12 + Math.floor(k / 5) * 6, 289 - Math.floor(k / 5) * 3, pop < 1 ? 0.6 + pop * 0.55 : 1);
     });
     run.rail.slice(0, RAIL.slots).forEach(t => { if (t.x !== undefined) drawTicket(ctx, t); });
+    run.mobileRail.slice(0, APP_RAIL.slots).forEach(t => { if (t.x !== undefined) drawTicket(ctx, t); });
+    if (run.mobileRail.length > APP_RAIL.slots) {
+      const x = APP_RAIL.x0 + APP_RAIL.slots * APP_RAIL.step;
+      rr(ctx, x - 8, 160, 36, 20, 6); ctx.fillStyle = '#1d3a5c'; ctx.fill();
+      ctx.fillStyle = '#eef5fd'; ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = 'center';
+      ctx.fillText('+' + (run.mobileRail.length - APP_RAIL.slots), x + 10, 174); ctx.textAlign = 'left';
+    }
     run.baristas.forEach(b => { if (b.ticket && b.ticket.x !== undefined) drawTicket(ctx, b.ticket); });
     if (run.rail.length > RAIL.slots) {
       const x = RAIL.x0 + RAIL.slots * RAIL.step;
@@ -495,7 +577,7 @@ export function startGame({ config, lesson }) {
       ctx.fillStyle = '#fff7ec'; ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = 'center';
       ctx.fillText('+' + (run.rail.length - RAIL.slots), x + 10, 174); ctx.textAlign = 'left';
     }
-    run.customers.filter(p => p.state !== 'outside' && p.state !== 'gone').sort((a, b) => a.y - b.y).forEach(p => drawCustomer(ctx, p, now));
+    run.customers.filter(p => !offstage(run, p)).sort((a, b) => a.y - b.y).forEach(p => drawCustomer(ctx, p, now));
     if (shadeLayer) ctx.drawImage(shadeLayer, 0, 0, W, H);
     if (state.xa > 0.01) drawXray(ctx, run, now, state.xa);
   }
@@ -524,7 +606,7 @@ export function startGame({ config, lesson }) {
     if (run.ordering) run.ordering.dest = { ...REGISTER_SPOT };
     let k = 0;
     for (const p of run.customers) {
-      if (p.state === 'outside' || p.state === 'gone') continue;
+      if (offstage(run, p)) continue;
       if (!p.entered) { p.entered = true; p.x = DOOR.x; p.y = DOOR.y; p.via = { ...DOOR_LANE }; }
       if (p.state === 'waiting') {
         const col = k % 9, row = Math.floor(k / 9);
@@ -533,7 +615,7 @@ export function startGame({ config, lesson }) {
       else if (p.state === 'walkout' || p.state === 'leaving') p.dest = { ...DOOR };
     }
     for (const p of run.customers) {
-      if (p.state === 'outside' || p.state === 'gone') continue;
+      if (offstage(run, p)) continue;
       if (!moveToward(p, dt, speed)) continue;
       if (p.state === 'pickup') {
         run.cups = run.cups.filter(cup => cup.id !== p.id);
@@ -544,14 +626,19 @@ export function startGame({ config, lesson }) {
     }
     const ease = REDUCED ? 1 : clamp(dt * 7, 0, 1);
     run.rail.forEach((t, i) => {
-      if (t.x === undefined) { t.x = 282; t.y = 272; t.tilt = (((t.id * 37) % 7) - 3) * 0.035; }
+      if (t.x === undefined) spawnTicket(t);
       const tx = RAIL.x0 + Math.min(i, RAIL.slots - 1) * RAIL.step;
       t.x += (tx - t.x) * ease; t.y += (RAIL.y - t.y) * ease;
+    });
+    run.mobileRail.forEach((t, i) => {
+      if (t.x === undefined) spawnTicket(t);
+      const tx = APP_RAIL.x0 + Math.min(i, APP_RAIL.slots - 1) * APP_RAIL.step;
+      t.x += (tx - t.x) * ease; t.y += (APP_RAIL.y - t.y) * ease;
     });
     run.baristas.forEach((b, i) => {
       if (!b.ticket) return;
       const t = b.ticket;
-      if (t.x === undefined) { t.x = 282; t.y = 272; t.tilt = (((t.id * 37) % 7) - 3) * 0.035; }
+      if (t.x === undefined) spawnTicket(t);
       t.x += (xs[i] + 16 - t.x) * ease; t.y += (258 - t.y) * ease;
     });
     run.pops = run.pops.filter(pp => performance.now() - pp.born < 1500);
@@ -601,7 +688,12 @@ export function startGame({ config, lesson }) {
     if (!run.idle && series.length > 1) {
       s += `<polyline class="s1" points="${series.map(p => `${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' ')}"/>`;
       const end = series[series.length - 1];
-      s += `<text class="lbl" x="${Math.min(sx(end[0]) + 8, CH.R + 6)}" y="${sy(end[1]) - 8}">This rush</text>`;
+      s += `<text class="lbl" x="${Math.min(sx(end[0]) + 8, CH.R + 6)}" y="${sy(end[1]) - 8}">${run.hasApp ? 'Walk-in rail' : 'This rush'}</text>`;
+      if (run.hasApp) {
+        s += `<polyline class="s2" points="${series.map(p => `${sx(p[0]).toFixed(1)},${sy(p[2]).toFixed(1)}`).join(' ')}"/>`;
+        const peak = series.reduce((best, p) => (p[2] > best[2] ? p : best), series[0]);
+        s += `<text class="lbl" x="${Math.min(sx(peak[0]) + 8, CH.R - 40)}" y="${sy(peak[2]) - 8}">App rail</text>`;
+      }
     }
     if (!d.rail && !run.idle && run.t > 0) {
       s += `<text class="ann" x="${(CH.L + CH.R) / 2}" y="${sy(30)}" text-anchor="middle">No queue, so the depth stays at zero.</text>`;
@@ -614,7 +706,7 @@ export function startGame({ config, lesson }) {
       const a = valueAt(series, m);
       s += `<line class="hover" x1="${sx(m)}" x2="${sx(m)}" y1="${CH.T}" y2="${CH.B}"/>`;
       const lines = [`${Math.round(m)} min (${clock(m * 60)})`];
-      if (a) lines.push(`${a[1]} waiting in the queue`);
+      if (a) lines.push(run.hasApp ? `${a[1]} walk-in, ${a[2]} app waiting` : `${a[1]} waiting in the queue`);
       const bw = 190, bh = 14 + lines.length * 17;
       const bx = sx(m) + 12 + bw > 596 ? sx(m) - 12 - bw : sx(m) + 12;
       s += `<rect class="tip" x="${bx}" y="${CH.T + 4}" width="${bw}" height="${bh}" rx="8"/>`;
@@ -622,7 +714,9 @@ export function startGame({ config, lesson }) {
     }
     chartEl.innerHTML = s;
     document.getElementById('legend').innerHTML =
-      `<span><i class="sw" aria-hidden="true"></i>Queue depth this rush</span>` +
+      (run.hasApp
+        ? `<span><i class="sw" aria-hidden="true"></i>Walk-in rail</span><span><i class="sw app" aria-hidden="true"></i>App rail</span>`
+        : `<span><i class="sw" aria-hidden="true"></i>Queue depth this rush</span>`) +
       (d.rail && Number.isFinite(d.capacity) ? `<span><i class="sw limit" aria-hidden="true"></i>Rail limit</span>` : '');
   }
   chartEl.addEventListener('pointermove', ev => {
@@ -659,6 +753,45 @@ export function startGame({ config, lesson }) {
     }).join('')}<li><span class="mk ${s ? 'ok' : ''}" aria-hidden="true">${s ? '✓' : ''}</span><span>Stay within the $${lv.budget} budget</span></li></ul>`;
   }
 
+  function railParts(lv, d) {
+    return `
+        <div class="part">
+          <div><span class="name">Ticket rail</span><span class="sys">Queue</span></div>
+          <button type="button" class="switch" data-act="rail" aria-pressed="${d.rail}">${d.rail ? 'On' : 'Off'}</button>
+          <p class="desc">Tickets wait here until a barista is free, so the cashier can keep taking orders. $${COST.rail}.</p>
+        </div>
+        <div class="part ${lv.capacityUnlocked && d.rail ? '' : 'locked'}">
+          <div><span class="name">Rail size</span><span class="sys">Queue limit</span></div>
+          <strong>${lv.capacityUnlocked && d.rail ? `${d.capacity} tickets` : 'No limit'}</strong>
+          ${lv.capacityUnlocked && d.rail
+            ? `<input type="range" id="capacity" min="5" max="50" step="1" value="${d.capacity}" aria-label="Rail size in tickets">
+               <p class="desc">When the rail is full, the cashier turns new customers away.</p>`
+            : `<p class="desc">${lv.capacityUnlocked ? 'Turn the rail on to set its size.' : 'Unlocks in level 2.3.'}</p>`}
+        </div>
+`;
+  }
+
+  function policyParts(lv, d) {
+    const options = lv.policies.map(p => `
+            <label class="choice"><input type="radio" name="policy" value="${p}" ${d.policy === p ? 'checked' : ''}>
+              <span><strong>${POLICIES[p]}</strong><span class="desc">${POLICY_HELP[p]}</span></span></label>`).join('');
+    return `
+        <div class="part">
+          <div><span class="name">Two ticket rails</span><span class="sys">Two queues</span></div>
+          <strong>Included</strong>
+          <p class="desc">Walk-in tickets print at the register. App orders print on their own printer and skip the register. $${COST.rail}.</p>
+        </div>
+        <div class="part">
+          <div><span class="name">How baristas pick the next ticket</span><span class="sys">Scheduling policy</span></div>
+          <div class="choices" role="radiogroup" aria-label="How baristas pick the next ticket">${options}</div>
+          ${d.policy === 'weighted'
+            ? `<label class="desc slider" for="mobileEvery">Every <strong id="everyN">${ordinal(d.mobileEvery)}</strong> drink comes from the app rail</label>
+               <input type="range" id="mobileEvery" min="2" max="6" step="1" value="${d.mobileEvery}">`
+            : ''}
+        </div>
+`;
+  }
+
   function renderDesign() {
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
@@ -681,19 +814,7 @@ export function startGame({ config, lesson }) {
           </div>
           <p class="desc">Each barista makes one drink at a time. $${COST.barista} each for the rush.</p>
         </div>
-        <div class="part">
-          <div><span class="name">Ticket rail</span><span class="sys">Queue</span></div>
-          <button type="button" class="switch" data-act="rail" aria-pressed="${d.rail}">${d.rail ? 'On' : 'Off'}</button>
-          <p class="desc">Tickets wait here until a barista is free, so the cashier can keep taking orders. $${COST.rail}.</p>
-        </div>
-        <div class="part ${lv.capacityUnlocked && d.rail ? '' : 'locked'}">
-          <div><span class="name">Rail size</span><span class="sys">Queue limit</span></div>
-          <strong>${lv.capacityUnlocked && d.rail ? `${d.capacity} tickets` : 'No limit'}</strong>
-          ${lv.capacityUnlocked && d.rail
-            ? `<input type="range" id="capacity" min="5" max="50" step="1" value="${d.capacity}" aria-label="Rail size in tickets">
-               <p class="desc">When the rail is full, the cashier turns new customers away.</p>`
-            : `<p class="desc">${lv.capacityUnlocked ? 'Turn the rail on to set its size.' : 'Unlocks in level 2.3.'}</p>`}
-        </div>
+        ${lv.policies ? policyParts(lv, d) : railParts(lv, d)}
         <div class="lockrow">
           ${LOCKED.map(l => `<div class="part locked"><div><span class="name">${l.name}</span><span class="sys">${l.sys} · ${l.lesson}</span></div></div>`).join('')}
         </div>
@@ -710,6 +831,27 @@ export function startGame({ config, lesson }) {
   }
 
 
+  function factsHTML(s, d) {
+    if (!state.run.hasApp) return `
+      <dl class="facts">
+        <div><dt>Served · 200 OK</dt><dd>${s.served}</dd></div>
+        <div><dt>Turned away · 503</dt><dd>${s.rejected}</dd></div>
+        <div><dt>Longest wait · latency</dt><dd>${s.longestWaitMin.toFixed(1)} min</dd></div>
+        <div><dt>Workers busy · utilization</dt><dd>${Math.round(s.utilization * 100)}%</dd></div>
+        <div><dt>Most tickets waiting · peak queue</dt><dd>${s.peakQueue}</dd></div>
+        <div><dt>Cost</dt><dd>$${designCost(d)}</dd></div>
+      </dl>`;
+    return `
+      <dl class="facts">
+        <div><dt>Longest walk-in wait · latency</dt><dd>${s.walkin.longestWaitMin.toFixed(1)} min</dd></div>
+        <div><dt>Longest app wait · latency</dt><dd>${s.mobile.longestWaitMin.toFixed(1)} min</dd></div>
+        <div><dt>Served · 200 OK</dt><dd>${s.walkin.served} walk-in, ${s.mobile.served} app</dd></div>
+        <div><dt>Workers busy · utilization</dt><dd>${Math.round(s.utilization * 100)}%</dd></div>
+        <div><dt>Most tickets waiting · peak queues</dt><dd>${s.peakQueue} walk-in, ${s.peakMobileQueue} app</dd></div>
+        <div><dt>Cost</dt><dd>$${designCost(d)}</dd></div>
+      </dl>`;
+  }
+
   function renderDebrief() {
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
@@ -721,14 +863,7 @@ export function startGame({ config, lesson }) {
       <p class="verdict ${ok ? 'ok' : 'no'}">${ok ? 'Goals met' : 'Not yet'}</p>
       ${goalsHTML(lv, s)}
       <p class="note">Goals marked SLO are <strong>service level objectives</strong>: targets a system promises to meet. Real teams track them on dashboards like the one behind this game.</p>
-      <dl class="facts">
-        <div><dt>Served · 200 OK</dt><dd>${s.served}</dd></div>
-        <div><dt>Turned away · 503</dt><dd>${s.rejected}</dd></div>
-        <div><dt>Longest wait · latency</dt><dd>${s.longestWaitMin.toFixed(1)} min</dd></div>
-        <div><dt>Workers busy · utilization</dt><dd>${Math.round(s.utilization * 100)}%</dd></div>
-        <div><dt>Most tickets waiting · peak queue</dt><dd>${s.peakQueue}</dd></div>
-        <div><dt>Cost</dt><dd>$${designCost(d)}</dd></div>
-      </dl>
+      ${factsHTML(s, d)}
       <h3>What happened</h3>
       <p>${lv.explain(d, s)}</p>
       <div class="concept">
@@ -775,7 +910,18 @@ export function startGame({ config, lesson }) {
     else if (act === 'next') setLevel(state.level + 1);
     else if (act === 'replay') startRush();
   });
+  panel.addEventListener('change', ev => {
+    if (ev.target.name !== 'policy') return;
+    state.designs[state.level].policy = ev.target.value;
+    designChanged();
+  });
   panel.addEventListener('input', ev => {
+    if (ev.target.id === 'mobileEvery') {
+      state.designs[state.level].mobileEvery = Number(ev.target.value);
+      document.getElementById('everyN').textContent = ordinal(Number(ev.target.value));
+      state.run = idleRun();
+      return;
+    }
     if (ev.target.id !== 'capacity') return;
     state.designs[state.level].capacity = Number(ev.target.value);
     state.run = idleRun();
@@ -811,9 +957,9 @@ export function startGame({ config, lesson }) {
 
   function startRush() {
     const d = state.designs[state.level];
-    const preview = summarize(completeRun(d, { config }));
+    const preview = summarize(completeRun(d, { config, rush: LEVELS[state.level].rush }));
     xMax = Math.max(60, Math.ceil(preview.endMin / 15) * 15);
-    state.run = createRun(d, { config, look });
+    state.run = makeRun(d);
     state.steam = [];
     state.phase = 'run'; state.playing = true;
     if (!state.xrayUsed) setXray(false);
@@ -866,8 +1012,14 @@ export function startGame({ config, lesson }) {
       hud.clock.textContent = clock(run.t);
       hud.served.textContent = run.served;
       hud.rejected.textContent = run.rejected;
-      hud.wait.textContent = run.longestWait ? `${Math.round(run.longestWait / 60)} min` : '–';
-      hud.queue.textContent = run.rail.length;
+      if (run.hasApp) {
+        const mins = ch => (ch.longestWait ? Math.round(ch.longestWait / 60) : '–');
+        hud.wait.textContent = `${mins(run.byChannel.walkin)} / ${mins(run.byChannel.mobile)}`;
+        hud.queue.textContent = `${run.rail.length} / ${run.mobileRail.length}`;
+      } else {
+        hud.wait.textContent = run.longestWait ? `${Math.round(run.longestWait / 60)} min` : '–';
+        hud.queue.textContent = run.rail.length;
+      }
     }
     if (state.phase === 'run' && run.message && run.message !== lastCaption && now - lastCaptionAt > 900) {
       hud.caption.innerHTML = run.message; lastCaption = run.message; lastCaptionAt = now;
@@ -882,7 +1034,7 @@ export function startGame({ config, lesson }) {
     lastFrame = now;
     const run = state.run;
     if (state.phase === 'run' && state.playing && !run.finished) {
-      if (run.events.length) run.t += dt * 60 * state.speed; else run.t = run.lastEventT;
+      run.t += dt * 60 * state.speed; // Keeps going after the last drink, while app customers arrive to collect.
       sample(run);
       processEvents(run, onEvent);
     }

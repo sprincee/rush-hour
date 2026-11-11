@@ -1,10 +1,28 @@
 {
   "description": "Shop settings shared by the game, the baristas, and the k6 rush. Times are in shop seconds; the real cluster runs timeScale times faster.",
   "timeScale": 60,
-  "rush": {
-    "customers": 50,
-    "windowSeconds": 600,
-    "seed": 20261103
+  "rushes": {
+    "lesson-2": {
+      "description": "The 8:05 rush: 50 walk-ins over ten minutes.",
+      "customers": 50,
+      "windowSeconds": 600,
+      "seed": 20261103,
+      "mobileShare": 0
+    },
+    "lesson-3-1": {
+      "description": "The app launches: 36 customers over 15 minutes, 40% ordering in the app.",
+      "customers": 36,
+      "windowSeconds": 900,
+      "seed": 20261111,
+      "mobileShare": 0.4
+    },
+    "lesson-3-2": {
+      "description": "A long, steady rush: 54 customers over 30 minutes, 35% ordering in the app.",
+      "customers": 54,
+      "windowSeconds": 1800,
+      "seed": 20261113,
+      "mobileShare": 0.35
+    }
   },
   "register": {
     "orderSeconds": 8

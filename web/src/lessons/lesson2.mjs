@@ -1,13 +1,13 @@
 // Lesson 2, the order line: levels, goals, and the concept each level teaches.
 // Kept as data so the game and the tests read the same definitions.
 
-export const COST = { barista: 18, rail: 2 };
+import { COST, designCost, evaluate } from './common.mjs';
 
-export const designCost = d => d.baristas * COST.barista + (d.rail ? COST.rail : 0);
+export { COST, designCost, evaluate };
 
 export const LEVELS = [
   {
-    id: '2.1', name: 'Nobody walks out', budget: 40,
+    id: '2.1', name: 'Nobody walks out', budget: 40, rush: 'lesson-2',
     brief: 'Fifty commuters will walk in over the next ten minutes. Right now the cashier only takes an order if a barista can start it on the spot. Anyone else walks out. Design a shop where nobody has to leave.',
     start: { baristas: 2, rail: false, capacity: Infinity }, capacityUnlocked: false,
     goals: [{ label: 'Serve all 50 customers', got: s => `${s.served} served`, ok: s => s.rejected === 0 }],
@@ -18,7 +18,7 @@ export const LEVELS = [
     },
   },
   {
-    id: '2.2', name: 'Too long a wait', budget: 60,
+    id: '2.2', name: 'Too long a wait', budget: 60, rush: 'lesson-2',
     brief: 'Everyone got a drink, but some people waited close to an hour. Your manager wants every drink out within 40 minutes of walking in, and gave you a bigger budget for today.',
     start: { baristas: 2, rail: true, capacity: Infinity }, capacityUnlocked: false,
     goals: [
@@ -32,7 +32,7 @@ export const LEVELS = [
     },
   },
   {
-    id: '2.3', name: 'Know when to say no', budget: 60,
+    id: '2.3', name: 'Know when to say no', budget: 60, rush: 'lesson-2',
     brief: 'Waiting 30 minutes for a latte is worse than going somewhere else. Your manager says nobody should wait more than 20 minutes. When the rail is full, the cashier should apologize and turn people away. Decide how many tickets the rail can hold.',
     start: { baristas: 2, rail: true, capacity: 30 }, capacityUnlocked: true,
     goals: [
@@ -77,10 +77,3 @@ LEVELS[2].explain = (d, s) => {
   if (many) return `The rail filled up and turned away <strong>${s.rejected}</strong> customers. A bigger rail, or more baristas to drain it faster, would keep more of them.`;
   return `A rail of ${d.capacity} with ${d.baristas} barista${d.baristas > 1 ? 's' : ''} kept every wait under 20 minutes and turned away ${s.rejected}. That's the trade-off a queue limit makes: a quick "sorry, we're full" for some people, so nobody waits forever.`;
 };
-
-/** Did a design pass a level? Budget is checked here too, since the game blocks over-budget runs. */
-export function evaluate(level, design, summary) {
-  const goals = level.goals.map(g => ({ label: g.label, ok: g.ok(summary) }));
-  const withinBudget = designCost(design) <= level.budget;
-  return { passed: withinBudget && goals.every(g => g.ok), withinBudget, goals };
-}

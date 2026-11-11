@@ -6,7 +6,7 @@ import { buildSchedule } from '../src/arrivals.mjs';
 import { config, run } from './helpers.mjs';
 
 const twoWithRail = { baristas: 2, rail: true, capacity: Infinity };
-const CUSTOMERS = config.rush.customers;
+const CUSTOMERS = config.rushes['lesson-2'].customers;
 
 test('the same design always gives the same rush', () => {
   assert.deepEqual(summarize(run(twoWithRail)), summarize(run(twoWithRail)));
@@ -96,6 +96,56 @@ test('stepping time like the animation gives the same result as running instantl
     while (r.events.length) { r.t += step; sample(r); processEvents(r); }
     assert.equal(summarize(r).longestWaitMin, instant.longestWaitMin, `step ${step}s`);
   }
+});
+
+test('lesson 2 has no app orders; lesson 3 rushes do', () => {
+  assert.ok(createRun(twoWithRail, { config }).customers.every(c => c.channel === 'walkin'));
+  const lesson3 = createRun(twoWithRail, { config, rush: 'lesson-3-1' }).customers;
+  assert.ok(lesson3.some(c => c.channel === 'mobile') && lesson3.some(c => c.channel === 'walkin'));
+});
+
+test('app orders skip the register, so a full walk-in rail never turns them away', () => {
+  const s = summarize(run({ baristas: 1, rail: true, capacity: 1, policy: 'fifo' }, { rush: 'lesson-3-2' }));
+  assert.equal(s.mobile.rejected, 0);
+  assert.ok(s.walkin.rejected > 0);
+});
+
+test('oldest-first starts tickets in the order they were placed, across both rails', () => {
+  const r = createRun({ baristas: 3, rail: true, policy: 'fifo' }, { config, rush: 'lesson-3-2' });
+  const started = [];
+  while (r.events.length) {
+    r.t = r.events[0].t;
+    processEvents(r);
+    for (const b of r.baristas) if (b.ticket && !started.includes(b.ticket)) started.push(b.ticket);
+  }
+  const times = started.map(tk => tk.t);
+  assert.deepEqual(times, [...times].sort((a, b) => a - b));
+});
+
+test('walk-ins first never starts an app ticket while a walk-in ticket is waiting', () => {
+  const r = createRun({ baristas: 3, rail: true, policy: 'walkin' }, { config, rush: 'lesson-3-2' });
+  const seen = new Set();
+  while (r.events.length) {
+    r.t = r.events[0].t;
+    processEvents(r);
+    for (const b of r.baristas) {
+      if (b.ticket && !seen.has(b.ticket)) {
+        seen.add(b.ticket);
+        if (b.ticket.channel === 'mobile' && b.startAt === r.t) {
+          const waitingWalkin = r.rail.some(tk => tk.t < b.startAt);
+          assert.equal(waitingWalkin, false, `app ticket ${b.ticket.id} started while walk-ins waited`);
+        }
+      }
+    }
+  }
+});
+
+test('fair share sits between the two strict rules', () => {
+  // Taking every 1st drink from the app is "app first"; a huge N is "walk-ins first".
+  const opts = { rush: 'lesson-3-2' };
+  const base = { baristas: 3, rail: true };
+  assert.deepEqual(summarize(run({ ...base, policy: 'weighted', mobileEvery: 1 }, opts)), summarize(run({ ...base, policy: 'mobile' }, opts)));
+  assert.deepEqual(summarize(run({ ...base, policy: 'weighted', mobileEvery: 1000 }, opts)), summarize(run({ ...base, policy: 'walkin' }, opts)));
 });
 
 test('workers are never busy more than all of the time', () => {

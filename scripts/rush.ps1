@@ -45,7 +45,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$customers = (Get-Content "$Root\shop\config.json" -Raw | ConvertFrom-Json).rush.customers
+$customers = (Get-Content "$Root\shop\config.json" -Raw | ConvertFrom-Json).rushes.'lesson-2'.customers
 Write-Host "Rush $RushId started: $customers customers, arriving as the game schedules them." -ForegroundColor Cyan
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $killed = -not $KillBarista

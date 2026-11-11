@@ -5,39 +5,62 @@
 // in time order. The game animates the results; tests check them directly.
 // The same design and settings always produce the same rush.
 // Settings come from shop/config.json, shared with the real cluster.
+//
+// Two kinds of customer:
+//   walk-in  orders at the register; the ticket goes on the walk-in rail
+//   mobile   orders in the app; the ticket prints on the app printer (its own rail)
 
 import { buildSchedule, menuById, mulberry32 } from './arrivals.mjs';
 
 export const SAMPLE_EVERY = 15;
 
+/** How a free barista picks the next ticket when both rails have one waiting. */
+export const POLICIES = {
+  fifo: 'Oldest ticket first',
+  walkin: 'Walk-ins first',
+  mobile: 'App orders first',
+  weighted: 'Every Nth drink from the app',
+};
+
 /**
  * Set up a rush without running it.
- * @param {{baristas: number, rail: boolean, capacity: number}} design
- *   capacity is the most tickets the rail holds. Use Infinity for no limit.
- * @param {{config: object, look?: Function}} options
- *   config is shop/config.json. look(customer, rand) lets the game add visual
- *   details. It gets its own random sequence, so it can never change the rush.
+ * @param {object} design
+ *   baristas: number of workers
+ *   rail: whether walk-in orders can wait on a rail (a queue)
+ *   capacity: most tickets the walk-in rail holds (Infinity for no limit)
+ *   policy: one of POLICIES (default 'fifo')
+ *   mobileEvery: for 'weighted', each barista makes every Nth drink from the app rail
+ * @param {{config: object, rush?: string, look?: Function}} options
+ *   config is shop/config.json, rush names one of its rushes. look(customer, rand)
+ *   lets the game add visual details. It gets its own random sequence, so it can
+ *   never change the rush.
  */
-export function createRun(design, { config, look } = {}) {
+export function createRun(design, { config, rush = 'lesson-2', look } = {}) {
   if (!config) throw new Error('createRun needs the shop config');
+  const settings = config.rushes[rush];
+  if (!settings) throw new Error(`shop config has no rush named ${rush}`);
+  design = { policy: 'fifo', mobileEvery: 3, capacity: Infinity, ...design };
+  if (!(design.policy in POLICIES)) throw new Error(`unknown policy ${design.policy}`);
+
   const menu = menuById(config);
-  const shop = { ...config.rush, orderSeconds: config.register.orderSeconds };
-  const lookRand = mulberry32(config.rush.seed ^ 0x5bd1e995);
-  const customers = buildSchedule(config).map(a => {
-    const c = { id: a.id, item: a.item, arriveAt: a.at, state: 'outside', orderedAt: 0, readyAt: 0 };
+  const shop = { ...settings, orderSeconds: config.register.orderSeconds };
+  const lookRand = mulberry32(settings.seed ^ 0x5bd1e995);
+  const customers = buildSchedule(config, rush).map(a => {
+    const c = { id: a.id, item: a.item, channel: a.channel, arriveAt: a.at, state: 'outside', orderedAt: 0, readyAt: 0 };
     if (look) look(c, lookRand);
     return c;
   });
   const run = {
-    design, shop, menu,
+    design, shop, menu, rushName: rush,
     t: 0, lastEventT: 0, customers, events: [], regQueue: [], ordering: null, cashierFrom: 0,
-    rail: [],
-    baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, reserved: null, startAt: 0, doneAt: 0, busyTime: 0 })),
+    rail: [], mobileRail: [],
+    baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, reserved: null, startAt: 0, doneAt: 0, busyTime: 0, sinceMobile: 0 })),
     cups: [], pops: [], served: 0, rejected: 0, longestWait: 0,
-    series: [[0, 0]], nextSample: SAMPLE_EVERY,
+    byChannel: { walkin: { served: 0, rejected: 0, longestWait: 0 }, mobile: { served: 0, rejected: 0, longestWait: 0 } },
+    series: [[0, 0, 0]], nextSample: SAMPLE_EVERY,
     message: '', finished: false, logicDone: false,
   };
-  customers.forEach(c => schedule(run, c.arriveAt, 'arrive', c));
+  customers.forEach(c => schedule(run, c.arriveAt, c.channel === 'mobile' ? 'appOrder' : 'arrive', c));
   return run;
 }
 
@@ -63,10 +86,18 @@ function handle(run, e, onEvent) {
     c.state = 'queue';
     run.regQueue.push(c);
     tryRegister(run, t, onEvent);
+  } else if (e.type === 'appOrder') {
+    // App orders skip the register and print straight onto the app rail.
+    const c = e.data;
+    c.state = 'waiting'; c.orderedAt = t;
+    const ticket = { id: c.id, c, item: c.item, channel: 'mobile', t };
+    run.mobileRail.push(ticket);
+    if (onEvent) onEvent('accepted', c, ticket);
+    tryBaristas(run, t);
   } else if (e.type === 'ordered') {
     const c = e.data;
     run.ordering = null; c.state = 'waiting'; c.orderedAt = t;
-    const ticket = { id: c.id, c, item: c.item };
+    const ticket = { id: c.id, c, item: c.item, channel: 'walkin', t };
     if (!run.design.rail) {
       // No queue: the order goes straight to the barista reserved for it.
       const b = run.baristas.find(x => x.reserved === c);
@@ -83,8 +114,12 @@ function handle(run, e, onEvent) {
     b.busyTime += t - b.startAt;
     b.ticket = null;
     c.state = 'pickup'; c.readyAt = t;
+    // Walk-ins wait from walking in; app customers from placing the order.
+    const wait = t - (c.channel === 'mobile' ? c.orderedAt : c.arriveAt);
+    const ch = run.byChannel[c.channel];
+    ch.served++; ch.longestWait = Math.max(ch.longestWait, wait);
     run.served++;
-    run.longestWait = Math.max(run.longestWait, t - c.arriveAt);
+    run.longestWait = Math.max(run.longestWait, wait);
     if (onEvent) onEvent('done', c, b);
     tryBaristas(run, t);
     tryRegister(run, t, onEvent);
@@ -92,7 +127,8 @@ function handle(run, e, onEvent) {
 }
 
 function reject(run, c, why, onEvent) {
-  c.state = 'walkout'; c.rejectedFor = why; run.rejected++;
+  c.state = 'walkout'; c.rejectedFor = why;
+  run.rejected++; run.byChannel[c.channel].rejected++;
   if (onEvent) onEvent('rejected', c, why);
 }
 
@@ -111,9 +147,27 @@ function tryRegister(run, t, onEvent) {
   }
 }
 
+/** Which rail a free barista takes from. Each barista keeps its own count for 'weighted'. */
+function nextTicket(run, b) {
+  const walkin = run.rail[0], mobile = run.mobileRail[0];
+  if (!walkin && !mobile) return null;
+  let takeMobile;
+  if (!walkin) takeMobile = true;
+  else if (!mobile) takeMobile = false;
+  else if (run.design.policy === 'fifo') takeMobile = mobile.t < walkin.t;
+  else if (run.design.policy === 'walkin') takeMobile = false;
+  else if (run.design.policy === 'mobile') takeMobile = true;
+  else takeMobile = b.sinceMobile >= run.design.mobileEvery - 1;
+  if (takeMobile) { b.sinceMobile = 0; return run.mobileRail.shift(); }
+  b.sinceMobile++;
+  return run.rail.shift();
+}
+
 function tryBaristas(run, t) {
   for (const b of run.baristas) {
-    if (!b.ticket && !b.reserved && run.rail.length) startDrink(run, b, run.rail.shift(), t);
+    if (b.ticket || b.reserved) continue;
+    const ticket = nextTicket(run, b);
+    if (ticket) startDrink(run, b, ticket, t);
   }
 }
 
@@ -122,15 +176,15 @@ function startDrink(run, b, ticket, t) {
   schedule(run, b.doneAt, 'drinkDone', b);
 }
 
-/** Record queue depth every SAMPLE_EVERY shop seconds, for the chart. */
+/** Record queue depth every SAMPLE_EVERY shop seconds, for the chart: [minute, walk-in rail, app rail]. */
 export function sample(run) {
   while (!run.logicDone && run.nextSample <= run.t) {
-    run.series.push([run.nextSample / 60, run.rail.length]);
+    run.series.push([run.nextSample / 60, run.rail.length, run.mobileRail.length]);
     run.nextSample += SAMPLE_EVERY;
   }
   if (!run.logicDone && run.events.length === 0) {
     run.logicDone = true;
-    run.series.push([run.lastEventT / 60, run.rail.length]);
+    run.series.push([run.lastEventT / 60, run.rail.length, run.mobileRail.length]);
   }
 }
 
@@ -151,6 +205,7 @@ export function completeRun(design, options) {
 export function summarize(run) {
   const busy = run.baristas.reduce((s, b) => s + b.busyTime, 0);
   const end = Math.max(run.lastEventT, 1);
+  const channel = ch => ({ served: ch.served, rejected: ch.rejected, longestWaitMin: ch.longestWait / 60 });
   return {
     served: run.served,
     rejected: run.rejected,
@@ -158,5 +213,8 @@ export function summarize(run) {
     endMin: end / 60,
     utilization: busy / (end * run.baristas.length),
     peakQueue: Math.max(...run.series.map(p => p[1])),
+    peakMobileQueue: Math.max(...run.series.map(p => p[2])),
+    walkin: channel(run.byChannel.walkin),
+    mobile: channel(run.byChannel.mobile),
   };
 }

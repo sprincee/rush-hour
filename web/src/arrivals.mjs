@@ -1,4 +1,4 @@
-// Who arrives when, and what they order. Built from shop/config.json.
+// Who arrives when, what they order, and whether they use the app. Built from shop/config.json.
 //
 // This file has no imports on purpose: the game, the tests, and the k6 rush on
 // the real cluster all load it, so the real rush sends exactly the customers the
@@ -14,10 +14,20 @@ export function mulberry32(seed) {
   };
 }
 
-/** [{ id, item, at }] where at is the arrival time in shop seconds. */
-export function buildSchedule(config) {
-  const { customers, windowSeconds, seed } = config.rush;
+/**
+ * [{ id, item, channel, at }] where at is the arrival (or app order) time in shop seconds
+ * and channel is 'walkin' or 'mobile'.
+ * @param {object} config shop/config.json
+ * @param {string} rush one of config.rushes
+ */
+export function buildSchedule(config, rush = 'lesson-2') {
+  const settings = config.rushes[rush];
+  if (!settings) throw new Error(`shop config has no rush named ${rush}`);
+  const { customers, windowSeconds, seed, mobileShare = 0 } = settings;
   const rand = mulberry32(seed);
+  // Who uses the app gets its own random sequence, so adding app orders never
+  // reshuffles anyone's arrival time or drink.
+  const channelRand = mulberry32(seed ^ 0x2c1b3c6d);
   const gap = windowSeconds / customers;
   const schedule = [];
   for (let i = 0; i < customers; i++) {
@@ -28,7 +38,9 @@ export function buildSchedule(config) {
       cumulative += m.share;
       if (p < cumulative) { item = m.id; break; }
     }
-    schedule.push({ id: i + 1, item, at: i * gap + rand() * gap * 0.85 });
+    const at = i * gap + rand() * gap * 0.85;
+    const channel = channelRand() < mobileShare ? 'mobile' : 'walkin';
+    schedule.push({ id: i + 1, item, channel, at });
   }
   return schedule;
 }

@@ -1,0 +1,8 @@
+# Lesson 3's page. Levels, goals and debrief text live in web/src/lessons/lesson3.mjs.
+slug = "mobile-orders"
+module = "lesson3.mjs"
+eyebrow = "Group A · The flow · Lesson 3 of 12"
+heading = "Mobile orders vs walk-ins"
+description = "Two ticket printers, one bar. Decide which ticket a free barista takes next, and see priority queues and starvation happen."
+lede = "The app just launched, and app orders print on their own printer. Walk-ins are standing at your counter; app customers ordered ahead. Choose how your baristas pick the next ticket, then run the rush. Press X-ray to see the two queues."
+foot = "The rush runs on an event-based simulation: every order, ticket and drink happens at an exact time, so the same design always gives the same result. It's checked against real rushes on the Rush Hour Kubernetes cluster."

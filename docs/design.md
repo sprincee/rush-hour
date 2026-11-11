@@ -43,6 +43,19 @@ Levels are tuned with the engine so each one forces a real trade-off, with comfo
 | 2.2 Too long a wait | Serve everyone, nobody waits over 40 min, $60 | Throughput: a queue holds work, only workers do it (3 baristas: 34.4 min) |
 | 2.3 Know when to say no | Nobody waits over 20 min, turn away 25 or fewer, $60 | Bounded queue: with 3 baristas, rail sizes 13-20 pass |
 
+### Lesson 3 levels
+
+App orders print on their own printer, so there are two rails (two queues). Walk-ins are standing at the counter, so they get the tighter goal: 15 minutes, against 30 for app orders, which customers place ahead. This follows the real shop: first come, first served normally, but in-store customers first during a big rush. The goals stay the same across the lesson while the traffic changes. Budget: $60, so 3 baristas (4 cost $74).
+
+| Level | Rush | Concept | Tuning (3 baristas, walk-in / app longest wait) |
+|---|---|---|---|
+| 3.1 Two printers | 36 customers over 15 min, 40% app | Priority queue: walk-ins first | Oldest first 18.0 / 17.7 fails; walk-ins first 7.1 / 19.8 passes; app first 19.0 / 5.1 fails |
+| 3.2 The app takes off | 54 customers over 30 min, 35% app | Starvation and fair share: every Nth drink from the app | Walk-ins first 6.5 / 32.2 (app orders starve); every 5th or 6th from the app passes clearly; every 2nd or 3rd fails walk-ins |
+
+A third level with a dedicated app barista (a separate worker pool, or bulkhead) was tried and dropped. With 3 baristas, one dedicated barista gives the app rail about the same share as "every 3rd drink", so it can't clearly beat fair share. Dedicated pools matter for isolating failures, which fits lesson 12.
+
+On the real cluster, each channel gets its own Redis stream (`line:walkin`, `line:mobile`), and baristas follow the same rule as the game. Each barista keeps its own count for fair share, exactly as the engine does.
+
 ### Ideas for later lessons
 
 - **Lesson 4, batching:** steam milk for 2-3 drinks from one pitcher, so each drink costs less time and money. The first drink waits for the batch.

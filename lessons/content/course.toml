@@ -22,6 +22,7 @@ name = "The flow"
   number = 3
   concept = "Priority queues"
   coffee = "Mobile orders vs walk-ins"
+  page = "mobile-orders"
 
   [[groups.lessons]]
   number = 4
