@@ -40,7 +40,7 @@ export const LEVELS = [
   },
   {
     id: '4.3', name: 'The app rush', budget: 60, rush: 'lesson-4-3',
-    brief: 'The app is a hit: 48 customers over half an hour, a third of them ordering ahead, mostly lattes. The shop now promises that app orders are ready by the time the customer walks in, about 10 minutes. Walk-ins still wait 15 minutes or less. You know the ticket rules from lesson 3. Will they be enough?',
+    brief: 'The app is a hit: 52 customers over half an hour, a third of them ordering ahead, mostly lattes. The shop now promises that app orders are ready by the time the customer walks in, about 10 minutes. Walk-ins still wait 15 minutes or less. You know the ticket rules from lesson 3 and batching from this lesson. Which do you need?',
     start: { baristas: 3, rail: true, capacity: Infinity, policy: 'walkin', mobileEvery: 5, batch: false, batchWait: 0 },
     controls: ['baristas', 'policy', 'batch'],
     policies: ['fifo', 'walkin', 'mobile', 'weighted'],
@@ -49,9 +49,9 @@ export const LEVELS = [
       { label: 'App orders ready within 10 minutes', got: s => `longest ${s.mobile.longestWaitMin.toFixed(1)} min`, ok: s => s.mobile.longestWaitMin <= 10 },
     ],
     concept: {
-      term: 'Do less work, not just reorder it',
-      body: 'Lesson 3\'s rules decide who waits. When the bar can\'t keep up, every order of tickets leaves somebody missing their goal. Batching makes the bar itself faster. And because a barista can pair a walk-in latte with an app latte from the other rail, app orders stop starving.',
-      real: 'When a system is overloaded, prioritizing only chooses who suffers. Real systems combine both: priority queues protect the most important traffic, and batching (or caching, lesson 8) cuts the work that has to be done at all.',
+      term: 'Do less work, and share it fairly',
+      body: 'Lesson 3\'s rules decide who waits. When the bar can\'t keep up, every order of tickets leaves somebody missing their goal, so you need batching to make the bar faster. But batching alone isn\'t enough either: with strict "walk-ins first", walk-ins keep arriving and app orders still starve. You need both lessons at once.',
+      real: 'When a system is overloaded, prioritizing only chooses who suffers. Real systems combine both: fair scheduling so no kind of traffic waits forever, and batching (or caching, lesson 8) to cut the work itself. Strict priority is also fragile: a fraction of a second\'s difference can decide whether a low-priority request waits 3 minutes or 20.',
     },
   },
 ];
@@ -79,5 +79,6 @@ LEVELS[2].explain = (d, s) => {
   const w = s.walkin.longestWaitMin.toFixed(1), m = s.mobile.longestWaitMin.toFixed(1);
   if (s.ok) return `Batching made the bar fast enough for both promises: walk-ins waited at most <strong>${w} minutes</strong> and app orders <strong>${m} minutes</strong>. ${s.batches} pitchers were shared, many between a walk-in latte and an app latte from the other rail.`;
   if (!d.batch) return `No ticket rule can fix this one: walk-ins waited up to <strong>${w} minutes</strong> and app orders up to <strong>${m} minutes</strong>. Moving tickets around only changes who misses their goal. The bar needs to get through more drinks.`;
+  if (d.policy === 'walkin') return `Batching made the bar faster, and walk-ins waited at most ${w} minutes. But walk-ins never stopped coming, so app orders only moved when the walk-in rail was empty, and some waited <strong>${m} minutes</strong>. That's lesson 3's starvation, still here. Batching needs a fair rule to go with it.`;
   return `Batching helped, but the goals were still missed: walk-ins ${w} minutes, app orders ${m} minutes.`;
 };

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startGame } from '../src/game/shop-game.mjs';
 import { summarize } from '../src/engine.mjs';
+import * as lesson1 from '../src/lessons/lesson1.mjs';
 import * as lesson2 from '../src/lessons/lesson2.mjs';
 import * as lesson3 from '../src/lessons/lesson3.mjs';
 import * as lesson4 from '../src/lessons/lesson4.mjs';
@@ -90,6 +91,26 @@ test('every lesson 2 level plays to a debrief, and the verdict matches the engin
     const expected = lesson2.evaluate(level, level.start, summarize(run(level.start, { rush: level.rush }))).passed;
     assert.equal(verdict(html), expected ? 'pass' : 'fail', `level ${level.id}`);
   });
+});
+
+test('every lesson 1 level plays to a debrief, from the starting design and a winning one', () => {
+  const winning = {
+    '1.1': { changes: p => p.act('async'), design: { sync: false } },
+    '1.2': { changes: p => { p.act('async'); p.act('plus'); }, design: { sync: false, baristas: 3 } },
+  };
+  for (const [i, level] of lesson1.LEVELS.entries()) {
+    for (const variant of ['start', 'winning']) {
+      const page = fakePage();
+      startGame({ config, lesson: lesson1 });
+      const w = winning[level.id];
+      const html = playLevel(page, i, variant === 'winning' ? w.changes : undefined);
+      const design = variant === 'winning' ? { ...level.start, ...w.design } : level.start;
+      const expected = lesson1.evaluate(level, design, summarize(run(design, { rush: level.rush }))).passed;
+      assert.equal(verdict(html), expected ? 'pass' : 'fail', `level ${level.id}, ${variant}`);
+      if (variant === 'winning') assert.equal(expected, true, `level ${level.id}: the winning design should pass`);
+      assert.ok(html.includes('time to an answer'), `level ${level.id}: debrief reports time to an answer`);
+    }
+  }
 });
 
 test('every lesson 4 level plays to a debrief, from the starting design and a winning one', () => {

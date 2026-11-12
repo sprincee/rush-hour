@@ -34,29 +34,37 @@ export const POLICIES = {
  *     from anywhere on either rail. The pair takes config.batch.prepFactor x one latte.
  *   batchWait: shop seconds a barista holds a lone latte, hoping a second one arrives
  *     (a batch window). 0 means only batch tickets that are already waiting.
+ *   sync: the cashier waits at the bar until each drink is made before taking the
+ *     next order (a synchronous call). false means "we'll call your name" (async).
  * @param {{config: object, rush?: string, look?: Function}} options
  *   config is shop/config.json, rush names one of its rushes. look(customer, rand)
  *   lets the game add visual details. It gets its own random sequence, so it can
  *   never change the rush.
  */
-export function createRun(design, { config, rush = 'lesson-2', look } = {}) {
+export function createRun(design, { config, rush = 'lesson-2', look, jitter } = {}) {
   if (!config) throw new Error('createRun needs the shop config');
   const settings = config.rushes[rush];
   if (!settings) throw new Error(`shop config has no rush named ${rush}`);
-  design = { policy: 'fifo', mobileEvery: 3, capacity: Infinity, batch: false, batchWait: 0, ...design };
+  design = { policy: 'fifo', mobileEvery: 3, capacity: Infinity, batch: false, batchWait: 0, sync: false, ...design };
   if (!(design.policy in POLICIES)) throw new Error(`unknown policy ${design.policy}`);
 
   const menu = menuById(config);
   const shop = { ...settings, orderSeconds: config.register.orderSeconds, batchFactor: config.batch?.prepFactor ?? 1 };
   const lookRand = mulberry32(settings.seed ^ 0x5bd1e995);
+  // jitter: { seconds, seed } nudges every arrival by up to that many shop seconds,
+  // like the small network and polling delays of the real cluster. Tests use it to
+  // check a level's verdicts don't hinge on split-second timing. The game never does.
+  const jitterRand = jitter ? mulberry32(jitter.seed) : null;
   const customers = buildSchedule(config, rush).map(a => {
-    const c = { id: a.id, item: a.item, channel: a.channel, arriveAt: a.at, state: 'outside', orderedAt: 0, readyAt: 0 };
+    const at = jitterRand ? Math.max(0, a.at + (jitterRand() * 2 - 1) * jitter.seconds) : a.at;
+    const c = { id: a.id, item: a.item, channel: a.channel, arriveAt: at, state: 'outside', orderedAt: 0, readyAt: 0 };
     if (look) look(c, lookRand);
     return c;
   });
   const run = {
     design, shop, menu, rushName: rush,
-    t: 0, lastEventT: 0, customers, events: [], regQueue: [], ordering: null, cashierFrom: 0,
+    // blockedBy: in sync mode, the ticket the cashier is waiting on before the next order.
+    t: 0, lastEventT: 0, customers, events: [], regQueue: [], ordering: null, cashierFrom: 0, blockedBy: null,
     rail: [], mobileRail: [],
     // ticket: the drink in hand. partner: a second latte sharing the pitcher.
     // holding: waiting by the steamer for a second latte (a batch window).
@@ -104,6 +112,8 @@ function handle(run, e, onEvent) {
     const c = e.data;
     run.ordering = null; c.state = 'waiting'; c.orderedAt = t;
     const ticket = { id: c.id, c, item: c.item, channel: 'walkin', t };
+    // Async: the customer has their answer (a ticket) now. Sync: only once the drink is made.
+    if (run.design.sync) run.blockedBy = ticket; else c.answeredAt = t;
     if (!run.design.rail) {
       // No queue: the order goes straight to the barista reserved for it.
       const b = run.baristas.find(x => x.reserved === c);
@@ -127,6 +137,8 @@ function handle(run, e, onEvent) {
       if (!ticket) continue;
       const c = ticket.c;
       c.state = 'pickup'; c.readyAt = t;
+      if (c.answeredAt === undefined) c.answeredAt = t; // App orders, and sync orders: answered with the drink.
+      if (run.blockedBy === ticket) run.blockedBy = null; // The cashier can take the next order.
       // Walk-ins wait from walking in; app customers from placing the order.
       const wait = t - (c.channel === 'mobile' ? c.orderedAt : c.arriveAt);
       const ch = run.byChannel[c.channel];
@@ -148,7 +160,7 @@ function reject(run, c, why, onEvent) {
 }
 
 function tryRegister(run, t, onEvent) {
-  while (!run.ordering && run.regQueue.length) {
+  while (!run.ordering && !run.blockedBy && run.regQueue.length) {
     const c = run.regQueue.shift();
     if (!run.design.rail) {
       const free = run.baristas.find(b => !b.ticket && !b.reserved);
@@ -258,6 +270,10 @@ export function summarize(run) {
   const busy = run.baristas.reduce((s, b) => s + b.busyTime, 0);
   const end = Math.max(run.lastEventT, 1);
   const channel = ch => ({ served: ch.served, rejected: ch.rejected, longestWaitMin: ch.longestWait / 60 });
+  // Time to an answer: from walking in until the register answers, with a ticket
+  // (async) or with the drink itself (sync). The response time of the API.
+  const walkins = run.customers.filter(c => c.channel === 'walkin' && c.answeredAt !== undefined);
+  const longestAnswer = Math.max(0, ...walkins.map(c => c.answeredAt - c.arriveAt));
   return {
     served: run.served,
     rejected: run.rejected,
@@ -266,6 +282,7 @@ export function summarize(run) {
     utilization: busy / (end * run.baristas.length),
     peakQueue: Math.max(...run.series.map(p => p[1])),
     peakMobileQueue: Math.max(...run.series.map(p => p[2])),
+    longestAnswerMin: longestAnswer / 60,
     steams: run.steams, // Pitchers of milk steamed: one per latte, or one per batch of two.
     batches: run.batches,
     walkin: channel(run.byChannel.walkin),

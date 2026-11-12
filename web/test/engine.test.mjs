@@ -205,6 +205,25 @@ test('a held latte starts by the end of its batch window, alone if no partner ca
   assert.equal(summarize(r).served, config.rushes['lesson-4-2'].customers);
 });
 
+test('sync: the cashier never takes a new order while a drink is still being made', () => {
+  const r = createRun({ baristas: 3, rail: true, sync: true }, { config, rush: 'lesson-1-1' });
+  let inProgress = 0;
+  while (r.events.length) {
+    r.t = r.events[0].t;
+    processEvents(r);
+    inProgress = Math.max(inProgress, r.baristas.filter(b => b.ticket).length + r.rail.length);
+  }
+  assert.equal(inProgress, 1);
+});
+
+test('sync answers with the drink; async answers with a ticket', () => {
+  const sync = createRun({ baristas: 2, rail: true, sync: true }, { config, rush: 'lesson-1-1' });
+  const async = createRun({ baristas: 2, rail: true }, { config, rush: 'lesson-1-1' });
+  for (const r of [sync, async]) while (r.events.length) { r.t = r.events[0].t; processEvents(r); }
+  assert.ok(sync.customers.every(c => c.answeredAt === c.readyAt));
+  assert.ok(async.customers.every(c => c.answeredAt === c.orderedAt));
+});
+
 test('workers are never busy more than all of the time', () => {
   const s = summarize(run({ baristas: 1, rail: true, capacity: Infinity }));
   assert.ok(s.utilization > 0 && s.utilization <= 1);

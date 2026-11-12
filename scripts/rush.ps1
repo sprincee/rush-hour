@@ -13,6 +13,9 @@
     Steam milk for two lattes at once. Use -Batch:$false to turn it off.
 .PARAMETER BatchWait
     With -Batch: shop minutes a barista holds a lone latte, hoping a second one arrives.
+.PARAMETER Sync
+    Make the register synchronous: one order at a time, each request held open until
+    its drink is ready (lesson 1). Use -Sync:$false to switch back.
 .PARAMETER KillBarista
     Force-kills one barista partway through. If it finishes its drink first, no
     order needs rescuing, so watch "Orders rescued" on the dashboard.
@@ -31,6 +34,7 @@ param(
     [ValidateRange(1, 10)][int]$Every = 3,
     [switch]$Batch,
     [ValidateRange(0, 6)][int]$BatchWait,
+    [switch]$Sync,
     [switch]$KillBarista,
     [switch]$Record
 )
@@ -86,7 +90,17 @@ if ($settingsChanges) {
     Invoke-Kubectl set env deployment/barista -n rush-hour @settingsChanges | Out-Null
     Wait-Baristas $replicas
 }
-if ($settingsChanges -or $Baristas) { Start-Sleep -Seconds 3 }  # Let new baristas join the consumer group.
+if ($PSBoundParameters.ContainsKey('Sync')) {
+    $mode = if ($Sync) { 'sync' } else { 'async' }
+    Write-Host "Register will run in $mode mode." -ForegroundColor Cyan
+    Invoke-Kubectl set env deployment/register -n rush-hour REGISTER_MODE=$mode | Out-Null
+    Invoke-Kubectl rollout status deployment/register -n rush-hour --timeout=120s | Out-Null
+    for ($i = 0; $i -lt 60; $i++) {
+        if (@(Invoke-Kubectl get pods -n rush-hour -l app=register -o name).Count -eq 1) { break }
+        Start-Sleep -Seconds 1
+    }
+}
+if ($settingsChanges -or $Baristas -or $PSBoundParameters.ContainsKey('Sync')) { Start-Sleep -Seconds 3 }  # Let new Pods settle.
 
 # A finished Job can't be rerun, so remove the previous rush first.
 Invoke-Kubectl delete job rush -n $Namespace --ignore-not-found --wait=true | Out-Null

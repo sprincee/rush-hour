@@ -52,12 +52,19 @@ test('4.3: no lesson 3 rule is enough without batching', () => {
   }
 });
 
-test('4.3: with batching, the lesson 3 rules pass clearly', () => {
-  for (const policy of ['walkin', 'fifo']) {
-    const r = play(appRush, at(appRush, { policy, batch: true }));
-    assert.ok(r.passed, policy);
-    assert.ok(r.s.walkin.longestWaitMin <= 15 - MARGIN && r.s.mobile.longestWaitMin <= 10 - MARGIN, policy);
+test('4.3: batching with a fair rule passes clearly', () => {
+  for (const rule of [{ policy: 'fifo' }, { policy: 'weighted', mobileEvery: 3 }]) {
+    const r = play(appRush, at(appRush, { ...rule, batch: true }));
+    assert.ok(r.passed, JSON.stringify(rule));
+    assert.ok(r.s.walkin.longestWaitMin <= 15 - MARGIN && r.s.mobile.longestWaitMin <= 10 - MARGIN, JSON.stringify(rule));
   }
+});
+
+test('4.3: batching with strict walk-ins first still starves app orders', () => {
+  const r = play(appRush, at(appRush, { policy: 'walkin', batch: true }));
+  assert.equal(r.passed, false);
+  assert.ok(r.s.walkin.longestWaitMin <= 15, 'walk-ins are fine');
+  assert.ok(r.s.mobile.longestWaitMin >= 10 + MARGIN, `app orders ${r.s.mobile.longestWaitMin}`);
 });
 
 test('4.3: four baristas are over budget', () => {

@@ -11,6 +11,7 @@ name = "The flow"
   number = 1
   concept = "Async vs sync"
   coffee = "Order at the register, then your name gets called"
+  page = "call-your-name"
 
   [[groups.lessons]]
   number = 2

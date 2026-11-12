@@ -33,7 +33,16 @@ Every level follows the same four phases:
 
 The **X-ray** toggle fades the shop into the same moment drawn as a system: the register becomes the API server, the rail becomes the queue, the baristas become workers, and pickup becomes the response. Every customer becomes a colored dot (a request), with "202", "503" and "200" pop-ups as events happen. The X-ray is on during design, so the player watches their architecture change.
 
-Levels are tuned with the engine so each one forces a real trade-off, with comfortable margins so a correct design clearly passes.
+Levels are tuned with the engine so each one forces a real trade-off, with comfortable margins so a correct design clearly passes. Verdicts must also survive timing noise: `web/test/robustness.test.mjs` nudges every arrival by up to 12 shop seconds over 16 runs, and each clear pass or fail must hold in 95% of them, since the real cluster runs a few milliseconds behind the game.
+
+### Lesson 1 levels
+
+Sync: the cashier takes an order, then waits at the bar until the drink is made before taking the next customer (`design.sync`). Async: the cashier prints a ticket, says "we'll call your name", and takes the next order. The engine also measures the time to an answer: from walking in until the register answers, with a ticket (async) or with the drink itself (sync).
+
+| Level | Rush | Concept | Tuning |
+|---|---|---|---|
+| 1.1 The cashier waits | 20 over 20 min, budget $80 (4 baristas affordable on purpose) | Synchronous vs asynchronous | Sync: 37.5 min longest wait with 1, 2, 3 or 4 baristas, all identical. Async: 2 baristas 9.6 (goal 15), 1 barista 35.0 |
+| 1.2 A fast answer | 24 over 20 min, budget $60 | Response time vs processing time | Goals: an answer within 2 min, the drink within 10. Sync answers in 48 min. Async answers in 0.1 min; 2 baristas 14.4 min to the drink, 3 baristas 4.6 |
 
 ### Lesson 2 levels
 
@@ -64,7 +73,7 @@ From the real shop: one latte takes 2 minutes and two batched take 2.5, so a bat
 |---|---|---|---|
 | 4.1 Steam for two | 28 over 15 min, 70% lattes, 2 baristas ($40) | Batching | No batching 25.6 min longest wait (goal 20); batching 15.8 |
 | 4.2 Should you wait for a second latte? | 16 over 30 min, 70% lattes, crew fixed at 2 | Batch window (Kafka's `linger.ms`) | Goals: 8 min and 9 pitchers. Windows of 2-4 min pass; 0-1 use 11-13 pitchers; 5-6 make waits 9-10 min |
-| 4.3 The app rush | 48 over 30 min, 35% app, 70% lattes, 3 baristas ($60) | Do less work, not just reorder it (builds on lesson 3) | Goals: walk-ins 15, app orders 10 (ready on arrival). Every lesson 3 rule fails without batching; with batching every rule passes |
+| 4.3 The app rush | 52 over 30 min, 35% app, 70% lattes, 3 baristas ($60) | Do less work, and share it fairly (builds on lesson 3) | Goals: walk-ins 15, app orders 10 (ready on arrival). Every rule fails without batching. With batching, walk-ins first still starves app orders (24.4 min); oldest first (8.0 / 7.8) or every 2nd-4th from the app pass. Retuned 2026-11-12 after the 48-customer version proved fragile (postmortem) |
 
 Two things found while tuning: one barista batches naturally because tickets pile up (which is why 4.2 fixes the crew at 2), and in a busy shop a batch window only adds waiting (4.1: 15.8 to 18.8 minutes).
 

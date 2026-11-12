@@ -44,10 +44,17 @@ export default function () {
   const placed = http.post(
     `${REGISTER}/orders`,
     JSON.stringify({ item: order.item, channel: order.channel, customer: `rush-${RUSH_ID}-${order.id}` }),
-    { headers: { 'Content-Type': 'application/json' }, timeout: '10s' },
+    // A sync register holds the request open until the drink is made, so allow time.
+    { headers: { 'Content-Type': 'application/json' }, timeout: '120s' },
   );
-  if (!check(placed, { 'order accepted': (r) => r.status === 202 })) {
+  // 202: async, a ticket; 200: sync, the drink itself.
+  if (!check(placed, { 'order accepted': (r) => r.status === 202 || r.status === 200 })) {
     ordersNotReady.add(1);
+    return;
+  }
+  if (placed.status === 200 && placed.json('status') === 'ready') {
+    drinkWait.add(placed.timings.duration / 1000);
+    ordersReady.add(1);
     return;
   }
 

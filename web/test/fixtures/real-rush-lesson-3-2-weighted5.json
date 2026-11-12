@@ -1,9 +1,9 @@
 {
   "description": "One real rush on the local cluster, recorded by scripts/record-rush.ps1. Times are real Unix seconds.",
-  "recordedAt": "2026-11-11T21:02:46+00:00",
-  "rushId": "20261111160138",
+  "recordedAt": "2026-11-12T18:21:29+00:00",
+  "rushId": "20261112132018",
   "rush": "lesson-3-2",
-  "configHash": "ffd4655345f39e31",
+  "configHash": "7da565226770cb5c",
   "design": {
     "baristas": 3,
     "rail": true,
@@ -11,7 +11,8 @@
     "policy": "weighted",
     "mobileEvery": 5,
     "batch": false,
-    "batchWait": 0.0
+    "batchWait": 0.0,
+    "sync": false
   },
   "orders": [
     {
@@ -19,486 +20,540 @@
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430912.3155246,
-      "startedAt": 1794430912.3195865,
-      "readyAt": 1794430914.3207774
+      "arrivedAt": 1794507633.9524035,
+      "createdAt": 1794507633.9524245,
+      "startedAt": 1794507633.979163,
+      "readyAt": 1794507635.980831
     },
     {
       "id": 2,
       "item": "cappuccino",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430913.1867843,
-      "startedAt": 1794430913.1885552,
-      "readyAt": 1794430915.689698
+      "arrivedAt": 1794507634.8227947,
+      "createdAt": 1794507634.8228157,
+      "startedAt": 1794507634.829147,
+      "readyAt": 1794507637.3304827
     },
     {
       "id": 3,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430913.6662138,
-      "startedAt": 1794430913.668119,
-      "readyAt": 1794430916.6692972
+      "arrivedAt": 1794507635.3018348,
+      "createdAt": 1794507635.3018575,
+      "startedAt": 1794507635.3256464,
+      "readyAt": 1794507638.3268337
     },
     {
       "id": 4,
       "item": "latte",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430914.2112072,
-      "startedAt": 1794430914.3219047,
-      "readyAt": 1794430917.322878
+      "arrivedAt": 1794507635.8469071,
+      "createdAt": 1794507635.8469307,
+      "startedAt": 1794507635.9825728,
+      "readyAt": 1794507638.9839747
     },
     {
       "id": 5,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430914.484655,
-      "startedAt": 1794430915.6919403,
-      "readyAt": 1794430917.692885
+      "arrivedAt": 1794507636.1215825,
+      "createdAt": 1794507636.1216002,
+      "startedAt": 1794507637.3328183,
+      "readyAt": 1794507639.3341043
     },
     {
       "id": 6,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430914.9794033,
-      "startedAt": 1794430916.670389,
-      "readyAt": 1794430919.1713638
+      "arrivedAt": 1794507636.6176796,
+      "createdAt": 1794507636.617698,
+      "startedAt": 1794507638.3296819,
+      "readyAt": 1794507640.8308408
     },
     {
       "id": 7,
       "item": "drip",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430915.6470323,
-      "startedAt": 1794430917.6941159,
-      "readyAt": 1794430919.6953218
+      "arrivedAt": 1794507637.2837663,
+      "createdAt": 1794507637.283783,
+      "startedAt": 1794507639.3359172,
+      "readyAt": 1794507641.3382328
     },
     {
       "id": 8,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430916.1403086,
-      "startedAt": 1794430917.3245294,
-      "readyAt": 1794430919.825408
+      "arrivedAt": 1794507637.7759385,
+      "createdAt": 1794507637.7759542,
+      "startedAt": 1794507638.9857275,
+      "readyAt": 1794507641.4868941
     },
     {
       "id": 9,
       "item": "drip",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430916.7601337,
-      "startedAt": 1794430923.1767557,
-      "readyAt": 1794430925.1778874
+      "arrivedAt": 1794507638.3970604,
+      "createdAt": 1794507638.397083,
+      "startedAt": 1794507644.8369765,
+      "readyAt": 1794507646.8383074
     },
     {
       "id": 10,
       "item": "cappuccino",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430917.3667192,
-      "startedAt": 1794430927.8321588,
-      "readyAt": 1794430930.3332112
+      "arrivedAt": 1794507639.002156,
+      "createdAt": 1794507639.002174,
+      "startedAt": 1794507649.4988356,
+      "readyAt": 1794507652.0008423
     },
     {
       "id": 11,
       "item": "latte",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430918.0491247,
-      "startedAt": 1794430929.7056231,
-      "readyAt": 1794430932.7069619
+      "arrivedAt": 1794507639.6857786,
+      "createdAt": 1794507639.6857955,
+      "startedAt": 1794507651.3517277,
+      "readyAt": 1794507654.3534508
     },
     {
       "id": 12,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430918.495566,
-      "startedAt": 1794430919.1729012,
-      "readyAt": 1794430921.1741748
+      "arrivedAt": 1794507640.1316226,
+      "createdAt": 1794507640.1316419,
+      "startedAt": 1794507640.8320036,
+      "readyAt": 1794507642.8345811
     },
     {
       "id": 13,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430919.0065162,
-      "startedAt": 1794430919.6965084,
-      "readyAt": 1794430921.6978054
+      "arrivedAt": 1794507640.6420906,
+      "createdAt": 1794507640.6421123,
+      "startedAt": 1794507641.339814,
+      "readyAt": 1794507643.3412151
     },
     {
       "id": 14,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430919.4382358,
-      "startedAt": 1794430919.8264036,
-      "readyAt": 1794430922.8263075
+      "arrivedAt": 1794507641.0743685,
+      "createdAt": 1794507641.0743876,
+      "startedAt": 1794507641.488097,
+      "readyAt": 1794507644.4880798
     },
     {
       "id": 15,
       "item": "drip",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430920.1209738,
-      "startedAt": 1794430934.690392,
-      "readyAt": 1794430936.6916862
+      "arrivedAt": 1794507641.7575042,
+      "createdAt": 1794507641.757525,
+      "startedAt": 1794507656.3506691,
+      "readyAt": 1794507658.3518898
     },
     {
       "id": 16,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430920.8237398,
-      "startedAt": 1794430921.1755369,
-      "readyAt": 1794430923.1758268
+      "arrivedAt": 1794507642.4615796,
+      "createdAt": 1794507642.461602,
+      "startedAt": 1794507642.8357103,
+      "readyAt": 1794507644.8347914
     },
     {
       "id": 17,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430921.5155516,
-      "startedAt": 1794430921.699276,
-      "readyAt": 1794430924.699254
+      "arrivedAt": 1794507643.1520333,
+      "createdAt": 1794507643.152051,
+      "startedAt": 1794507643.3435957,
+      "readyAt": 1794507646.343091
     },
     {
       "id": 18,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430921.753544,
-      "startedAt": 1794430922.8277526,
-      "readyAt": 1794430924.8285508
+      "arrivedAt": 1794507643.3904877,
+      "createdAt": 1794507643.3905094,
+      "startedAt": 1794507644.4911015,
+      "readyAt": 1794507646.4938288
     },
     {
       "id": 19,
       "item": "cappuccino",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430922.5399108,
-      "startedAt": 1794430939.8425083,
-      "readyAt": 1794430942.3434222
+      "arrivedAt": 1794507644.1760807,
+      "createdAt": 1794507644.1760976,
+      "startedAt": 1794507661.5141582,
+      "readyAt": 1794507664.0168037
     },
     {
       "id": 20,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430922.825979,
-      "startedAt": 1794430924.7002132,
-      "readyAt": 1794430927.2012196
+      "arrivedAt": 1794507644.4610653,
+      "createdAt": 1794507644.461083,
+      "startedAt": 1794507646.344118,
+      "readyAt": 1794507648.845406
     },
     {
       "id": 21,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430923.350817,
-      "startedAt": 1794430924.8293438,
-      "readyAt": 1794430927.8304167
+      "arrivedAt": 1794507644.986583,
+      "createdAt": 1794507644.986612,
+      "startedAt": 1794507646.495201,
+      "readyAt": 1794507649.4965172
     },
     {
       "id": 22,
       "item": "cappuccino",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430923.8766975,
-      "startedAt": 1794430942.718647,
-      "readyAt": 1794430945.2197115
+      "arrivedAt": 1794507645.5121272,
+      "createdAt": 1794507645.5121493,
+      "startedAt": 1794507664.3706112,
+      "readyAt": 1794507666.8718634
     },
     {
       "id": 23,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430924.4639547,
-      "startedAt": 1794430925.179817,
-      "readyAt": 1794430928.1808279
+      "arrivedAt": 1794507646.0995946,
+      "createdAt": 1794507646.0996125,
+      "startedAt": 1794507646.8395822,
+      "readyAt": 1794507649.8408577
     },
     {
       "id": 24,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430925.315612,
-      "startedAt": 1794430927.2031877,
-      "readyAt": 1794430929.7045565
+      "arrivedAt": 1794507646.9515579,
+      "createdAt": 1794507646.9515746,
+      "startedAt": 1794507648.8484218,
+      "readyAt": 1794507651.3496609
     },
     {
       "id": 25,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430925.5889878,
-      "startedAt": 1794430928.1818442,
-      "readyAt": 1794430930.6829095
+      "arrivedAt": 1794507647.2230802,
+      "createdAt": 1794507647.2230978,
+      "startedAt": 1794507649.842699,
+      "readyAt": 1794507652.343835
     },
     {
       "id": 26,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430926.1049006,
-      "startedAt": 1794430930.3341386,
-      "readyAt": 1794430932.3351932
+      "arrivedAt": 1794507647.740962,
+      "createdAt": 1794507647.74098,
+      "startedAt": 1794507652.002207,
+      "readyAt": 1794507654.0035572
     },
     {
       "id": 27,
       "item": "latte",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430926.7895083,
-      "startedAt": 1794430947.7049046,
-      "readyAt": 1794430950.7061675
+      "arrivedAt": 1794507648.424896,
+      "createdAt": 1794507648.424918,
+      "startedAt": 1794507669.3665667,
+      "readyAt": 1794507672.3747084
     },
     {
       "id": 28,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430927.4653704,
-      "startedAt": 1794430930.6848874,
-      "readyAt": 1794430932.6865973
+      "arrivedAt": 1794507649.1013432,
+      "createdAt": 1794507649.1013691,
+      "startedAt": 1794507652.3448315,
+      "readyAt": 1794507654.3461747
     },
     {
       "id": 29,
       "item": "cappuccino",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430928.1229155,
-      "startedAt": 1794430950.8517516,
-      "readyAt": 1794430953.3510418
+      "arrivedAt": 1794507649.7590482,
+      "createdAt": 1794507649.7590735,
+      "startedAt": 1794507672.5342774,
+      "readyAt": 1794507675.0339184
     },
     {
       "id": 30,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430928.563942,
-      "startedAt": 1794430932.3358943,
-      "readyAt": 1794430935.3370578
+      "arrivedAt": 1794507650.1996014,
+      "createdAt": 1794507650.1996224,
+      "startedAt": 1794507654.004695,
+      "readyAt": 1794507657.0060625
     },
     {
       "id": 31,
       "item": "cappuccino",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430928.981561,
-      "startedAt": 1794430952.7091124,
-      "readyAt": 1794430955.210249
+      "arrivedAt": 1794507650.6162732,
+      "createdAt": 1794507650.6162915,
+      "startedAt": 1794507674.3785858,
+      "readyAt": 1794507676.8797154
     },
     {
       "id": 32,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430929.6604774,
-      "startedAt": 1794430932.6880183,
-      "readyAt": 1794430934.6892972
+      "arrivedAt": 1794507651.2960536,
+      "createdAt": 1794507651.2960715,
+      "startedAt": 1794507654.3477848,
+      "readyAt": 1794507656.3489165
     },
     {
       "id": 33,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430930.038507,
-      "startedAt": 1794430932.7085834,
-      "readyAt": 1794430934.709444
+      "arrivedAt": 1794507651.6728501,
+      "createdAt": 1794507651.6728668,
+      "startedAt": 1794507654.3558102,
+      "readyAt": 1794507656.358963
     },
     {
       "id": 34,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430930.9400196,
-      "startedAt": 1794430934.7102952,
-      "readyAt": 1794430937.7112882
+      "arrivedAt": 1794507652.5747368,
+      "createdAt": 1794507652.5747547,
+      "startedAt": 1794507656.3601353,
+      "readyAt": 1794507659.3613002
     },
     {
       "id": 35,
       "item": "drip",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430931.4642313,
-      "startedAt": 1794430953.2273967,
-      "readyAt": 1794430955.2289047
+      "arrivedAt": 1794507653.1001494,
+      "createdAt": 1794507653.1001666,
+      "startedAt": 1794507674.8820243,
+      "readyAt": 1794507676.883309
     },
     {
       "id": 36,
       "item": "drip",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430931.828147,
-      "startedAt": 1794430953.3527353,
-      "readyAt": 1794430955.3536344
+      "arrivedAt": 1794507653.4654355,
+      "createdAt": 1794507653.4654613,
+      "startedAt": 1794507675.0364072,
+      "readyAt": 1794507677.0375853
     },
     {
       "id": 37,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430932.4280574,
-      "startedAt": 1794430935.3388014,
-      "readyAt": 1794430937.3399923
+      "arrivedAt": 1794507654.063439,
+      "createdAt": 1794507654.0634565,
+      "startedAt": 1794507657.0088325,
+      "readyAt": 1794507659.0100675
     },
     {
       "id": 38,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430932.8471503,
-      "startedAt": 1794430936.693346,
-      "readyAt": 1794430939.6946363
+      "arrivedAt": 1794507654.483089,
+      "createdAt": 1794507654.4831097,
+      "startedAt": 1794507658.3528283,
+      "readyAt": 1794507661.3538966
     },
     {
       "id": 39,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430933.6866252,
-      "startedAt": 1794430937.3409314,
-      "readyAt": 1794430939.841799
+      "arrivedAt": 1794507655.321642,
+      "createdAt": 1794507655.3216655,
+      "startedAt": 1794507659.0113802,
+      "readyAt": 1794507661.5129051
     },
     {
       "id": 40,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430934.0050445,
-      "startedAt": 1794430937.7133524,
-      "readyAt": 1794430940.7147112
+      "arrivedAt": 1794507655.6402795,
+      "createdAt": 1794507655.640318,
+      "startedAt": 1794507659.3640146,
+      "readyAt": 1794507662.365052
     },
     {
       "id": 41,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430934.745503,
-      "startedAt": 1794430939.6959822,
-      "readyAt": 1794430942.6970994
+      "arrivedAt": 1794507656.38099,
+      "createdAt": 1794507656.3810108,
+      "startedAt": 1794507661.3555305,
+      "readyAt": 1794507664.356625
     },
     {
       "id": 42,
       "item": "latte",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430935.2369943,
-      "startedAt": 1794430955.211721,
-      "readyAt": 1794430958.2127795
+      "arrivedAt": 1794507656.8729358,
+      "createdAt": 1794507656.8729582,
+      "startedAt": 1794507676.8812563,
+      "readyAt": 1794507679.8824883
     },
     {
       "id": 43,
       "item": "latte",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430935.7522767,
-      "startedAt": 1794430955.2301595,
-      "readyAt": 1794430958.2314208
+      "arrivedAt": 1794507657.388229,
+      "createdAt": 1794507657.3882477,
+      "startedAt": 1794507676.8861063,
+      "readyAt": 1794507679.8876295
     },
     {
       "id": 44,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430936.141046,
-      "startedAt": 1794430940.7158012,
-      "readyAt": 1794430942.716762
+      "arrivedAt": 1794507657.7773547,
+      "createdAt": 1794507657.7773702,
+      "startedAt": 1794507662.3666687,
+      "readyAt": 1794507664.3684251
     },
     {
       "id": 45,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430936.8425803,
-      "startedAt": 1794430942.3451908,
-      "readyAt": 1794430944.846197
+      "arrivedAt": 1794507658.4779508,
+      "createdAt": 1794507658.477974,
+      "startedAt": 1794507664.0203369,
+      "readyAt": 1794507666.5223727
     },
     {
       "id": 46,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430937.5688276,
-      "startedAt": 1794430942.6992614,
-      "readyAt": 1794430945.2002413
+      "arrivedAt": 1794507659.2058015,
+      "createdAt": 1794507659.2058232,
+      "startedAt": 1794507664.3577259,
+      "readyAt": 1794507666.8592038
     },
     {
       "id": 47,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430938.0096624,
-      "startedAt": 1794430944.8471134,
-      "readyAt": 1794430947.8479333
+      "arrivedAt": 1794507659.641952,
+      "createdAt": 1794507659.6419747,
+      "startedAt": 1794507666.5237546,
+      "readyAt": 1794507669.5270042
     },
     {
       "id": 48,
       "item": "cappuccino",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430938.486624,
-      "startedAt": 1794430945.201175,
-      "readyAt": 1794430947.702406
+      "arrivedAt": 1794507660.1224194,
+      "createdAt": 1794507660.1224375,
+      "startedAt": 1794507666.861542,
+      "readyAt": 1794507669.3646204
     },
     {
       "id": 49,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430939.0149305,
-      "startedAt": 1794430945.2209163,
-      "readyAt": 1794430948.2220278
+      "arrivedAt": 1794507660.6493492,
+      "createdAt": 1794507660.649366,
+      "startedAt": 1794507666.872944,
+      "readyAt": 1794507669.8743951
     },
     {
       "id": 50,
       "item": "drip",
       "channel": "mobile",
       "status": "ready",
-      "createdAt": 1794430939.8184187,
-      "startedAt": 1794430955.3548357,
-      "readyAt": 1794430957.35568
+      "arrivedAt": 1794507661.4532943,
+      "createdAt": 1794507661.4533179,
+      "startedAt": 1794507677.0390677,
+      "readyAt": 1794507679.0406737
     },
     {
       "id": 51,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430940.181366,
-      "startedAt": 1794430947.8497648,
-      "readyAt": 1794430950.8507543
+      "arrivedAt": 1794507661.8167121,
+      "createdAt": 1794507661.8167284,
+      "startedAt": 1794507669.529303,
+      "readyAt": 1794507672.5310378
     },
     {
       "id": 52,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430940.8505454,
-      "startedAt": 1794430948.2238352,
-      "readyAt": 1794430950.224868
+      "arrivedAt": 1794507662.4869063,
+      "createdAt": 1794507662.4869246,
+      "startedAt": 1794507669.876215,
+      "readyAt": 1794507671.8779397
     },
     {
       "id": 53,
       "item": "latte",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430941.403627,
-      "startedAt": 1794430950.2259421,
-      "readyAt": 1794430953.2252994
+      "arrivedAt": 1794507663.0393515,
+      "createdAt": 1794507663.0393705,
+      "startedAt": 1794507671.8797896,
+      "readyAt": 1794507674.8796313
     },
     {
       "id": 54,
       "item": "drip",
       "channel": "walkin",
       "status": "ready",
-      "createdAt": 1794430941.9695494,
-      "startedAt": 1794430950.707315,
-      "readyAt": 1794430952.7067842
+      "arrivedAt": 1794507663.604078,
+      "createdAt": 1794507663.6040945,
+      "startedAt": 1794507672.3775504,
+      "readyAt": 1794507674.3769815
     }
   ]
 }

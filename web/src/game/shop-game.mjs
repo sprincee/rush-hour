@@ -99,6 +99,9 @@ export function startGame({ config, lesson }) {
     if (kind === 'accepted' && c.channel === 'mobile') {
       run.pops.push({ text: '202 · app order', x: APP_PRINTER.x, y: 104, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()} in the app. <b>→ The request skipped the register and went straight to the app queue (line:mobile).</b>`;
+    } else if (kind === 'accepted' && run.design.sync) {
+      run.pops.push({ text: 'waiting…', x: 246, y: 214, color: COLORS.arriving, born: performance.now() });
+      run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()}, and the cashier went to the bar to wait for it. <b>→ Sync: the API is holding the request open until the job is done. Nobody else can order.</b>`;
     } else if (kind === 'accepted') {
       run.pops.push({ text: '202 Accepted', x: 246, y: 214, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()}. <b>→ API replied 202 Accepted${run.design.rail ? ' and added a message to the queue' : ' and handed the job to a free worker'}.</b>`;
@@ -115,7 +118,9 @@ export function startGame({ config, lesson }) {
       run.pops.push({ text: '200 OK', x: 852, y: 214, color: COLORS.done, born: performance.now() });
       run.message = extra.partner
         ? `${clock(t)}  Two lattes up, for customers ${extra.ticket.id} and ${extra.partner.id}. <b>→ Worker ${extra.i + 1} finished a batch of 2 jobs: two 200 OKs from one pitcher.</b>`
-        : `${clock(t)}  Order up for customer ${c.id}. <b>→ Worker ${extra.i + 1} finished the job: 200 OK.</b>`;
+        : run.design.sync
+          ? `${clock(t)}  Here's your latte, customer ${c.id}. Next, please! <b>→ The register finally answers with the drink itself: 200 OK. Only now can the next request start.</b>`
+          : `${clock(t)}  Order up for customer ${c.id}. <b>→ Worker ${extra.i + 1} finished the job: 200 OK.</b>`;
     }
   }
 
@@ -439,7 +444,8 @@ export function startGame({ config, lesson }) {
     node(c, 168, 222, 138, 88, 'API server', 'the register', {});
     if (!big) {
       c.font = "500 10.5px 'IBM Plex Mono', monospace"; c.fillStyle = '#a9c4e0';
-      c.fillText('POST /orders', 178, 272); c.fillText(d.rail ? '→ 202 Accepted' : '→ 202 or 503', 178, 288);
+      c.fillText('POST /orders', 178, 272); c.fillText(d.sync ? '→ waits, then 200' : d.rail ? '→ 202 Accepted' : '→ 202 or 503', 178, 288);
+      if (run.blockedBy) { c.fillStyle = '#ffd9a0'; c.fillText(`holding #${run.blockedBy.id} open`, 178, 304); }
     }
 
     if (run.hasApp) {
@@ -572,13 +578,14 @@ export function startGame({ config, lesson }) {
         ctx.fillText(Number.isFinite(run.design.capacity) ? `TICKET RAIL · HOLDS ${run.design.capacity}` : 'TICKET RAIL', 344, 139);
       }
     }
-    drawStaff(ctx, CASHIER_X, now, !!run.ordering, 0, '#c68b62', '#2b1d16');
+    drawStaff(ctx, CASHIER_X, now, !!run.ordering || !!run.blockedBy, 0, '#c68b62', '#2b1d16');
     run.baristas.forEach((b, i) => {
       const busy = !!b.ticket;
       const progress = b.holding ? holdProgress(run, b) : busy ? clamp((run.t - b.startAt) / (b.doneAt - b.startAt), 0, 1) : 0;
       drawStaff(ctx, xs[i], now, busy, progress, STAFF_LOOK[i][0], STAFF_LOOK[i][1], b.holding ? '#5aa2f0' : '#e0a85c');
     });
     if (frontLayer) ctx.drawImage(frontLayer, 0, 0, W, H);
+    if (run.blockedBy) labelChip(ctx, CASHIER_X, 160, `Waiting for #${run.blockedBy.id}`);
     run.baristas.forEach((b, i) => {
       if (!b.ticket || !menu[b.ticket.item].batchable) return;
       drawPitcher(ctx, xs[i] - 30, 288, b.partner ? 1.3 : 1, !b.holding);
@@ -648,7 +655,9 @@ export function startGame({ config, lesson }) {
     for (const p of run.customers) {
       if (offstage(run, p)) continue;
       if (!p.entered) { p.entered = true; p.x = DOOR.x; p.y = DOOR.y; p.via = { ...DOOR_LANE }; }
-      if (p.state === 'waiting') {
+      if (run.blockedBy && run.blockedBy.c === p) {
+        p.dest = { ...REGISTER_SPOT }; // Sync: you wait at the register for your drink.
+      } else if (p.state === 'waiting') {
         const col = k % 9, row = Math.floor(k / 9);
         p.dest = { x: 432 + col * 40 + (row % 2) * 18, y: 394 + row * 19 }; k++;
       } else if (p.state === 'pickup') p.dest = { ...PICKUP_SPOT };
@@ -826,6 +835,14 @@ export function startGame({ config, lesson }) {
           <strong>Included</strong>
           <p class="desc">Tickets wait here until a barista is free. $${COST.rail}.</p>
         </div>`;
+    if (lv.controls.includes('async')) html += `
+        <div class="part">
+          <div><span class="name">Call names</span><span class="sys">Asynchronous</span></div>
+          <button type="button" class="switch" data-act="async" aria-pressed="${!d.sync}">${d.sync ? 'Off' : 'On'}</button>
+          <p class="desc">${d.sync
+            ? 'Off: the cashier waits at the bar until each drink is made, then takes the next order.'
+            : 'On: the cashier prints a ticket, says "we\'ll call your name", and takes the next order right away.'}</p>
+        </div>`;
     if (lv.controls.includes('batch')) html += `
         <div class="part">
           <div><span class="name">Batch the milk</span><span class="sys">Batching</span></div>
@@ -914,6 +931,8 @@ export function startGame({ config, lesson }) {
 
   function batchFacts(s) {
     const lv = LEVELS[state.level];
+    if (lv.controls && lv.controls.includes('async')) return `
+        <div><dt>Longest time to an answer · response time</dt><dd>${s.longestAnswerMin.toFixed(1)} min</dd></div>`;
     if (!lv.controls || !lv.controls.some(c => c === 'batch' || c === 'batchWait')) return '';
     return `
         <div><dt>Pitchers steamed</dt><dd>${s.steams}</dd></div>
@@ -997,6 +1016,7 @@ ${batchFacts(s)}
     else if (act === 'plus') { d.baristas = Math.min(4, d.baristas + 1); designChanged(); }
     else if (act === 'rail') { d.rail = !d.rail; designChanged(); }
     else if (act === 'batch') { d.batch = !d.batch; designChanged(); }
+    else if (act === 'async') { d.sync = !d.sync; designChanged(); }
     else if (act === 'run') startRush();
     else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); renderChart(); }
     else if (act === 'next') setLevel(state.level + 1);

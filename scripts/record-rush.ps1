@@ -14,9 +14,6 @@ param(
 $Context = 'k3d-rush-hour'
 $Root = Split-Path -Parent $PSScriptRoot
 
-# Same hash the tests compute, so a recording made with different settings is caught.
-$configHash = (Get-FileHash "$Root\shop\config.json" -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
-
 # The design the rush ran with: barista count and ticket rule, read from the cluster.
 $deployment = kubectl --context $Context get deployment barista -n rush-hour -o json | ConvertFrom-Json
 $baristas = $deployment.spec.replicas
@@ -29,9 +26,12 @@ if (-not $rule) { $rule = 'fifo' }
 if (-not $every) { $every = '3' }
 if (-not $batch) { $batch = 'off' }
 if (-not $batchWait) { $batchWait = '0' }
+$registerEnv = (kubectl --context $Context get deployment register -n rush-hour -o json | ConvertFrom-Json).spec.template.spec.containers[0].env
+$registerMode = ($registerEnv | Where-Object name -eq 'REGISTER_MODE').value
+if (-not $registerMode) { $registerMode = 'async' }
 
 $json = Get-Content "$PSScriptRoot\record_orders.py" -Raw |
-    kubectl --context $Context exec -i -n rush-hour deploy/register -- python - $RushId $Rush $baristas $rule $every $batch $batchWait $configHash
+    kubectl --context $Context exec -i -n rush-hour deploy/register -- python - $RushId $Rush $baristas $rule $every $batch $batchWait $registerMode
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Could not read the orders from Redis.' -ForegroundColor Red
     exit 1
@@ -48,6 +48,7 @@ if ($ready -ne $expected) {
 $name = "real-rush-$Rush-$(if ($rule -eq 'weighted') { "weighted$every" } else { $rule })"
 if ($batch -eq 'on') { $name += '-batch' }
 if ([int]$batchWait -gt 0) { $name += "-wait$batchWait" }
+if ($registerMode -eq 'sync') { $name += '-sync' }
 $name += '.json'
 $out = "$Root\web\test\fixtures\$name"
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null

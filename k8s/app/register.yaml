@@ -31,6 +31,10 @@ spec:
               value: redis://redis:6379/0
             - name: SHOP_CONFIG
               value: /config/config.json
+            # "async": answer 202 with a ticket right away. "sync": one order at a time,
+            # holding each request open until the drink is ready (lesson 1).
+            - name: REGISTER_MODE
+              value: async
           volumeMounts:
             - name: shop-config
               mountPath: /config

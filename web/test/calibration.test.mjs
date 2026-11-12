@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRun, processEvents } from '../src/engine.mjs';
-import { config, configHash } from './helpers.mjs';
+import { config, rushHash } from './helpers.mjs';
 
 const FIXTURES = new URL('./fixtures/', import.meta.url);
 
@@ -29,7 +29,7 @@ function simulate(design, rush) {
       for (const tk of [b.ticket, b.partner]) if (tk && !started.has(tk.id)) started.set(tk.id, b.startAt);
     }
   }
-  return run.customers.map(c => ({ id: c.id, item: c.item, channel: c.channel, orderedAt: c.orderedAt, startedAt: started.get(c.id), readyAt: c.readyAt }));
+  return run.customers.map(c => ({ id: c.id, item: c.item, channel: c.channel, arriveAt: c.arriveAt, orderedAt: c.orderedAt, startedAt: started.get(c.id), readyAt: c.readyAt }));
 }
 
 // Queue depth at time t: accepted, but no barista has started it yet.
@@ -44,10 +44,10 @@ if (recordings.length === 0) {
 for (const file of recordings) {
   test(`the game matches the real rush in ${file}`, t => {
     const real = JSON.parse(readFileSync(new URL(file, FIXTURES), 'utf8'));
-    if (real.configHash !== configHash) { t.skip('recorded with different shop settings: re-record it'); return; }
+    const rush = real.rush ?? 'lesson-2';
+    if (real.configHash !== rushHash(rush)) { t.skip(`the settings for ${rush} changed since this was recorded: re-record it`); return; }
 
     const scale = config.timeScale;
-    const rush = real.rush ?? 'lesson-2';
     const design = { ...real.design, capacity: real.design.capacity ?? Infinity };
     const sim = simulate(design, rush);
     const byId = new Map(sim.map(o => [o.id, o]));
@@ -73,12 +73,20 @@ for (const file of recordings) {
     const realPeak = Math.max(...times.map(x => depthAt(realShop, x)));
     const simPeak = Math.max(...times.map(x => depthAt(sim, x)));
 
-    t.diagnostic(`${rush}, ${design.baristas} baristas, rule ${design.policy}${design.policy === 'weighted' ? ` every ${design.mobileEvery}` : ''}${design.batch ? `, batching${design.batchWait ? ` with a ${design.batchWait / 60}-minute window` : ''}` : ''}`);
+    t.diagnostic(`${rush}, ${design.baristas} baristas, rule ${design.policy}${design.policy === 'weighted' ? ` every ${design.mobileEvery}` : ''}${design.batch ? `, batching${design.batchWait ? ` with a ${design.batchWait / 60}-minute window` : ''}` : ''}${design.sync ? ', sync register' : ''}`);
     for (const channel of ['walkin', 'mobile']) {
       const r = longest(realShop, channel), s = longest(sim, channel);
       if (s === 0 && r === 0) continue;
       t.diagnostic(`longest ${channel} wait: real ${r.toFixed(1)} min, game ${s.toFixed(1)} min`);
       assert.ok(Math.abs(r - s) / s <= TOLERANCE.longestWaitRatio, `longest ${channel} wait`);
+    }
+    // From walking in to the drink: what a sync register makes customers feel, since
+    // they wait in line before the cashier even takes the order.
+    if (real.orders.every(o => o.arrivedAt)) {
+      const realArrival = Math.max(...real.orders.map(o => (o.readyAt - o.arrivedAt) * scale / 60));
+      const simArrival = Math.max(...sim.map(o => (o.readyAt - o.arriveAt) / 60));
+      t.diagnostic(`longest from walking in to the drink: real ${realArrival.toFixed(1)} min, game ${simArrival.toFixed(1)} min`);
+      assert.ok(Math.abs(realArrival - simArrival) / simArrival <= TOLERANCE.longestWaitRatio, 'longest wait from walking in');
     }
     t.diagnostic(`last drink out: real ${realFinish.toFixed(1)} min, game ${simFinish.toFixed(1)} min`);
     t.diagnostic(`average per-order wait difference: ${meanDiff.toFixed(2)} min`);
