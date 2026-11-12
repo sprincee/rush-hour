@@ -1,0 +1,54 @@
+{% extends "base.html.j2" %}
+{% block title %}The menu · Rush Hour{% endblock %}
+{% block description %}Every Rush Hour lesson, from the first order to the big rush.{% endblock %}
+{% block body_class %}menu-page{% endblock %}
+{% block body %}
+<main class="menu-board">
+  <div class="wrap menu-inner">
+    <div class="section-head">
+      <p class="stub">Today's menu</p>
+      <h1>{{ playable | length }} lessons, from the first order to the big rush</h1>
+      <p>Each lesson works on its own, but they build on each other. Start at the top.</p>
+    </div>
+
+    {% for group in course.groups if group.playable %}
+    <div class="menu-group">
+      <p class="menu-group-title"><span>Group {{ group.id }}</span><strong>{{ group.name }}</strong></p>
+      <div class="rail">
+        <ol class="rail-tickets tickets">
+          {% for l in group.playable %}
+          <li>
+            <a class="lesson-ticket" href="{{ l.page }}.html">
+              <div class="ticket">
+                <div class="ticket-head"><span>#{{ '%02d' % l.number }} · Lesson {{ l.number }}</span><span>{{ l.levels }} levels</span></div>
+                <span class="lesson-item">{{ l.heading }}</span>
+                <span class="lesson-mod">+ {{ l.concept }}</span>
+                <span class="lesson-coffee">{{ l.coffee }}</span>
+                <span class="lesson-play">Play lesson {{ l.number }} <span class="arrow">→</span></span>
+              </div>
+            </a>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="menu-group">
+      <p class="menu-group-title"><span>Coming soon</span></p>
+      <div class="soon-groups">
+        {% for group in course.groups if group.soon %}
+        <div>
+          <p class="menu-group-title"><span>Group {{ group.id }}</span><strong>{{ group.name }}</strong></p>
+          <ul class="soon">
+            {% for l in group.soon %}
+            <li><span class="num">{{ l.number }}</span><span class="name">{{ l.coffee }}</span><span class="dots" aria-hidden="true"></span><span class="concept">{{ l.concept }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

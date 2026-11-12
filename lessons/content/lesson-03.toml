@@ -1,6 +1,7 @@
 # Lesson 3's page. Levels, goals and debrief text live in web/src/lessons/lesson3.mjs.
 slug = "mobile-orders"
 module = "lesson3.mjs"
+levels = 2
 eyebrow = "Group A · The flow · Lesson 3 of 12"
 heading = "Mobile orders vs walk-ins"
 description = "Two ticket printers, one bar. Decide which ticket a free barista takes next, and see priority queues and starvation happen."

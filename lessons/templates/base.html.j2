@@ -8,16 +8,33 @@
 <title>{% block title %}{% endblock %}</title>
 <meta name="description" content="{% block description %}{% endblock %}">
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
-<link rel="stylesheet" href="assets/css/lesson.css">
+<link rel="preload" href="assets/fonts/bricolage-grotesque-500-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/atkinson-hyperlegible-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/site.css">
+<link rel="stylesheet" href="assets/css/game.css">
 {% block head %}{% endblock %}
 {% if not fragment -%}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 {% endif -%}
+<header class="site-header wrap">
+  <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>Rush Hour</a>
+  <nav class="site-nav" aria-label="Site">
+    <a href="menu.html" {% if page == 'menu' %}aria-current="page"{% endif %}>Menu</a>
+    <a href="about.html" {% if page == 'about' %}aria-current="page"{% endif %}>About</a>
+    <a class="nav-play" href="{{ first_lesson }}.html">Play <span class="arrow">→</span></a>
+  </nav>
+</header>
 {% block body %}{% endblock %}
+{% block footer %}
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Rush Hour is an interactive system design course built by Mahad Khan.</p>
+    <p class="mono"><a href="about.html">How it's built</a></p>
+  </div>
+</footer>
+{% endblock %}
 {% if not fragment -%}
 </body>
 </html>

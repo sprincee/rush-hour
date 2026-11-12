@@ -1,54 +1,56 @@
 {% extends "base.html.j2" %}
 {% block title %}{{ course.title }}{% endblock %}
 {% block description %}{{ course.tagline }}{% endblock %}
-{% block head %}
-<style>
-  .groups { display: grid; gap: 22px; }
-  .group h2 { font: 800 1.3rem/1.2 var(--font-display); margin: 0 0 10px; }
-  .group h2 span { font: 600 0.72rem/1 var(--font-mono); color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
-  .lessons { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .lesson { display: grid; gap: 4px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0; }
-  a.lesson:hover { border-color: var(--accent); }
-  .lesson .num { font: 600 0.7rem/1 var(--font-mono); color: var(--muted); letter-spacing: 0.06em; display: flex; justify-content: space-between; gap: 8px; }
-  .lesson .num b { color: var(--accent); font-weight: 600; }
-  .lesson .concept { font: 800 1.05rem/1.2 var(--font-display); }
-  .lesson .coffee { color: var(--ink-2); font-size: 0.92rem; }
-  .lesson.soon { opacity: 0.6; }
-  @media (max-width: 640px) { .lessons { grid-template-columns: minmax(0, 1fr); } }
-</style>
-{% endblock %}
+{% block body_class %}home{% endblock %}
 {% block body %}
-<div class="wrap">
-  <header class="top">
-    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>{{ course.title }}</a>
-    <span class="pill">Preview</span>
-  </header>
-  <section class="intro">
-    <p class="eyebrow">An interactive system design course</p>
-    <h1>{{ course.heading }}</h1>
+<main class="hero wrap">
+  <div class="hero-copy">
+    <p class="stub">An interactive system design course</p>
+    <h1>Learn system design by running a <span class="soft">coffee shop</span>.</h1>
     <p class="lede">{{ course.tagline }}</p>
-  </section>
-  <div class="groups">
-  {% for group in course.groups %}
-    <section class="group">
-      <h2><span>Group {{ group.id }}</span>{{ group.name }}</h2>
-      <ol class="lessons">
-      {% for l in group.lessons %}
-        <li>
-        {% if l.get('page') %}
-          <a class="lesson" href="{{ l.page }}.html">
-        {% else %}
-          <div class="lesson soon">
-        {% endif %}
-            <span class="num"><span>LESSON {{ l.number }}</span>{% if l.get('page') %}<b>PLAY</b>{% else %}<span>SOON</span>{% endif %}</span>
-            <span class="concept">{{ l.concept }}</span>
-            <span class="coffee">{{ l.coffee }}</span>
-        {% if l.get('page') %}</a>{% else %}</div>{% endif %}
-        </li>
-      {% endfor %}
-      </ol>
-    </section>
-  {% endfor %}
+    <div class="hero-actions">
+      <a class="btn-primary" href="{{ first_lesson }}.html" data-start>Start lesson 1 <span class="arrow">→</span></a>
+      <a class="btn-quiet" href="menu.html">See the menu</a>
+    </div>
+    <ul class="hero-facts">
+      <li><strong>{{ playable | length }}</strong> lessons</li>
+      <li><strong>{{ total_levels }}</strong> levels</li>
+      <li>Free, in your browser</li>
+    </ul>
   </div>
-</div>
+
+  <figure class="demo" aria-label="A live demo of the game">
+    <div class="stage">
+      {% include "_shop_stage.html.j2" %}
+      <p class="caption" id="caption" aria-live="off"></p>
+    </div>
+    <figcaption class="demo-note"><span class="live-dot" aria-hidden="true"></span> Live demo. Press the monitor to flip to the X-ray.</figcaption>
+  </figure>
+</main>
+
+{% include "_start_flow.html.j2" %}
+
+<script type="module">
+  import { startGame } from './assets/js/game/shop-game.mjs';
+  import { setUpStartFlow } from './assets/js/site/start-flow.mjs';
+  import * as lesson from './assets/js/lessons/lesson4.mjs';
+
+  setUpStartFlow();
+  try {
+    const config = await (await fetch('assets/shop-config.json')).json();
+    // The homepage demo: lesson 4.3, the app rush, with batching and a fair rule.
+    const LEVEL = 2;
+    const DESIGN = { policy: 'weighted', mobileEvery: 3, batch: true };
+    const demo = startGame({ config, lesson, onFinish: () => setTimeout(() => demo.play(LEVEL, DESIGN), 3000) });
+    demo.play(LEVEL, DESIGN);
+    // Flip between the counter and the X-ray until the visitor takes over.
+    let visitorFlipped = false;
+    document.getElementById('xrayBtn').addEventListener('click', () => { visitorFlipped = true; });
+    setInterval(() => { if (!visitorFlipped) demo.setXray(!demo.xray); }, 7000);
+  } catch (err) {
+    document.getElementById('caption').textContent = 'The demo shop couldn’t open. The lessons still work: press Start lesson 1.';
+    throw err;
+  }
+</script>
 {% endblock %}
+{% block footer %}{% endblock %}

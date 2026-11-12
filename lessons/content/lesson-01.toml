@@ -1,6 +1,7 @@
 # Lesson 1's page. Levels, goals and debrief text live in web/src/lessons/lesson1.mjs.
 slug = "call-your-name"
 module = "lesson1.mjs"
+levels = 2
 eyebrow = "Group A · The flow · Lesson 1 of 12"
 heading = "We'll call your name"
 description = "Should the cashier wait at the bar for every drink, or print a ticket and call your name? See synchronous and asynchronous systems side by side."

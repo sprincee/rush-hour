@@ -6,9 +6,16 @@ import { menuById } from '../arrivals.mjs';
 
 /**
  * Start the game on a page built from lessons/templates/_shop_game.html.j2.
- * @param {{config: object, lesson: object}} options config is shop/config.json; lesson is a lesson module.
+ * @param {object} options
+ *   config: shop/config.json. lesson: a lesson module (web/src/lessons/).
+ *   next: { href, title } for the lesson after this one, shown after the last level.
+ *   onFinish(summary): called after every rush. The homepage demo uses it to loop.
+ * @returns a small controller: play(levelIndex, designChanges), setXray(on), xray, setSpeed(n).
  */
-export function startGame({ config, lesson }) {
+export function startGame({ config, lesson, next, onFinish }) {
+  // Pages may leave parts out (the homepage has only the shop), so missing elements
+  // become detached stand-ins instead of errors.
+  const byId = id => document.getElementById(id) || document.createElement('div');
 
 
   
@@ -75,9 +82,9 @@ export function startGame({ config, lesson }) {
     const run = createRun(d, { config, look, rush: LEVELS[state.level].rush });
     run.hasApp = run.customers.some(c => c.channel === 'mobile');
     RAIL = run.hasApp ? RAIL_SPLIT : RAIL_FULL;
-    document.getElementById('lb-wait').innerHTML = run.hasApp ? 'Longest wait <em>· walk-in / app</em>' : 'Longest wait <em>· latency</em>';
-    document.getElementById('lb-queue').innerHTML = run.hasApp ? 'On the rails <em>· walk-in / app</em>' : 'On the rail <em>· queue depth</em>';
-    document.getElementById('key-shape').hidden = !run.hasApp;
+    byId('lb-wait').innerHTML = run.hasApp ? 'Longest wait <em>· walk-in / app</em>' : 'Longest wait <em>· latency</em>';
+    byId('lb-queue').innerHTML = run.hasApp ? 'On the rails <em>· walk-in / app</em>' : 'On the rail <em>· queue depth</em>';
+    byId('key-shape').hidden = !run.hasApp;
     return run;
   }
 
@@ -125,7 +132,7 @@ export function startGame({ config, lesson }) {
   }
 
   // ---------- Drawing ----------
-  const canvas = document.getElementById('shop');
+  const canvas = byId('shop');
   const ctx = canvas.getContext('2d');
   let scale = 1, backLayer = null, frontLayer = null, shadeLayer = null;
 
@@ -711,7 +718,7 @@ export function startGame({ config, lesson }) {
   }
 
   // ---------- Chart ----------
-  const chartEl = document.getElementById('chart');
+  const chartEl = byId('chart');
   const CH = { L: 46, R: 500, T: 18, B: 240, yMax: 50 };
   let xMax = 60;
   const sx = v => CH.L + (v / xMax) * (CH.R - CH.L);
@@ -767,7 +774,7 @@ export function startGame({ config, lesson }) {
       lines.forEach((ln, i) => { s += `<text class="tiptext" x="${bx + 10}" y="${CH.T + 22 + i * 17}">${ln}</text>`; });
     }
     chartEl.innerHTML = s;
-    document.getElementById('legend').innerHTML =
+    byId('legend').innerHTML =
       (run.hasApp
         ? `<span><i class="sw" aria-hidden="true"></i>Walk-in rail</span><span><i class="sw app" aria-hidden="true"></i>App rail</span>`
         : `<span><i class="sw" aria-hidden="true"></i>Queue depth this rush</span>`) +
@@ -782,10 +789,10 @@ export function startGame({ config, lesson }) {
   chartEl.addEventListener('pointerleave', () => { state.hover = null; renderChart(); });
 
   // ---------- Panels ----------
-  const panel = document.getElementById('panel');
+  const panel = byId('panel');
 
   function renderLevels() {
-    document.getElementById('levels').innerHTML = LEVELS.map((l, i) =>
+    byId('levels').innerHTML = LEVELS.map((l, i) =>
       `<li><button type="button" data-level="${i}" ${i === state.level ? 'aria-current="true"' : ''} ${i > state.unlocked ? 'disabled' : ''}>` +
       `<span class="n"><span>LEVEL ${l.id}</span><span>${state.passed[i] ? 'PASSED ✓' : i > state.unlocked ? 'LOCKED' : ''}</span></span>` +
       `<span class="t">${l.name}</span></button></li>`).join('');
@@ -793,18 +800,22 @@ export function startGame({ config, lesson }) {
 
   function renderPhase() {
     const ph = state.phase === 'design' ? 1 : state.phase === 'run' ? 2 : 3;
-    document.getElementById('phase').innerHTML = ['Brief', 'Design', 'Run', 'Debrief']
+    byId('phase').innerHTML = ['Brief', 'Design', 'Run', 'Debrief']
       .map((n, i) => `<span class="${i === ph || (i === 0 && ph === 1) ? 'on' : ''}">${n}</span>`).join('');
-    document.getElementById('pause').hidden = state.phase !== 'run';
-    document.getElementById('pause').textContent = state.playing ? 'Pause' : 'Resume';
+    byId('pause').hidden = state.phase !== 'run';
+    byId('pause').textContent = state.playing ? 'Pause' : 'Resume';
+  }
+
+  function badge(ok) {
+    if (ok === null) return '<span class="badge">GOAL</span>';
+    return ok ? '<span class="badge ok">✓ MET</span>' : '<span class="badge bad">✕ MISSED</span>';
   }
 
   function goalsHTML(lv, s) {
     return `<ul class="goals">${lv.goals.map(g => {
       const ok = s ? g.ok(s) : null;
-      return `<li><span class="mk ${ok === null ? '' : ok ? 'ok' : 'no'}" aria-hidden="true">${ok === null ? '' : ok ? '✓' : '✕'}</span>` +
-        `<span><span class="slo">SLO</span>${g.label}${s ? ` <span class="got">(${g.got(s)})</span>` : ''}<span class="sr">${ok === null ? '' : ok ? ', met' : ', missed'}</span></span></li>`;
-    }).join('')}<li><span class="mk ${s ? 'ok' : ''}" aria-hidden="true">${s ? '✓' : ''}</span><span>Stay within the $${lv.budget} budget</span></li></ul>`;
+      return `<li>${badge(ok)}<span class="goal-text"><span class="slo">SLO</span>${g.label}${s ? ` <span class="got">${g.got(s)}</span>` : ''}</span></li>`;
+    }).join('')}<li>${s ? badge(true) : '<span class="badge">BUDGET</span>'}<span class="goal-text">Stay within the $${lv.budget} budget</span></li></ul>`;
   }
 
   function baristaPart(lv, d) {
@@ -852,8 +863,11 @@ export function startGame({ config, lesson }) {
     if (lv.controls.includes('batchWait')) html += `
         <div class="part">
           <div><span class="name">Wait for a second latte</span><span class="sys">Batch window</span></div>
-          <strong id="waitLabel">${minutes === 0 ? "Don't wait" : `Up to ${minutes} min`}</strong>
-          <input type="range" id="batchWait" min="0" max="6" step="1" value="${minutes}" aria-label="Minutes to hold a lone latte">
+          <div class="stepper">
+            <button type="button" data-act="wait-minus" aria-label="Wait one minute less" ${minutes <= 0 ? 'disabled' : ''}>−</button>
+            <output aria-live="polite">${minutes === 0 ? "Don't wait" : `${minutes} min`}</output>
+            <button type="button" data-act="wait-plus" aria-label="Wait one minute more" ${minutes >= 6 ? 'disabled' : ''}>+</button>
+          </div>
           <p class="desc">A barista with one latte holds it this long, hoping a second latte arrives to share the pitcher. Batching is on.</p>
         </div>`;
     return html;
@@ -891,8 +905,15 @@ export function startGame({ config, lesson }) {
           <div><span class="name">How baristas pick the next ticket</span><span class="sys">Scheduling policy</span></div>
           <div class="choices" role="radiogroup" aria-label="How baristas pick the next ticket">${options}</div>
           ${d.policy === 'weighted'
-            ? `<label class="desc slider" for="mobileEvery">Every <strong id="everyN">${ordinal(d.mobileEvery)}</strong> drink comes from the app rail</label>
-               <input type="range" id="mobileEvery" min="2" max="6" step="1" value="${d.mobileEvery}">`
+            ? `<div class="every">
+                 <span class="desc">Every</span>
+                 <div class="stepper">
+                   <button type="button" data-act="every-minus" aria-label="App drinks more often" ${d.mobileEvery <= 2 ? 'disabled' : ''}>−</button>
+                   <output aria-live="polite">${ordinal(d.mobileEvery)}</output>
+                   <button type="button" data-act="every-plus" aria-label="App drinks less often" ${d.mobileEvery >= 6 ? 'disabled' : ''}>+</button>
+                 </div>
+                 <span class="desc">drink comes from the app rail</span>
+               </div>`
             : ''}
         </div>
 `;
@@ -904,7 +925,7 @@ export function startGame({ config, lesson }) {
     const cost = designCost(d);
     const over = cost > lv.budget;
     panel.innerHTML = `
-      <p class="eyebrow">Level ${lv.id} · Brief</p>
+      <div class="ticket-head"><span>LEVEL ${lv.id} · BRIEF</span><span>BUDGET $${lv.budget}</span></div>
       <h2>${lv.name}</h2>
       <p class="quiet">${lv.brief}</p>
       <h3>Goals</h3>
@@ -969,11 +990,13 @@ ${batchFacts(s)}
     const ok = lv.goals.every(g => g.ok(s));
     s.ok = ok;
     panel.innerHTML = `
-      <p class="eyebrow">Level ${lv.id} · Debrief</p>
+      <div class="ticket-head"><span>LEVEL ${lv.id} · DEBRIEF</span><span>CLOSED ${clock(state.run.lastEventT)}</span></div>
       <p class="verdict ${ok ? 'ok' : 'no'}">${ok ? 'Goals met' : 'Not yet'}</p>
       ${goalsHTML(lv, s)}
       <p class="note">Goals marked SLO are <strong>service level objectives</strong>: targets a system promises to meet. Real teams track them on dashboards like the one behind this game.</p>
+      <h3 class="receipt-title">Your shift</h3>
       ${factsHTML(s, d)}
+      <div class="receipt-total"><span>TOTAL</span><span>${ok ? 'ALL GOALS MET' : `${lv.goals.filter(g => !g.ok(s)).length} GOAL${lv.goals.filter(g => !g.ok(s)).length > 1 ? 'S' : ''} MISSED`}</span></div>
       <h3>What happened</h3>
       <p>${lv.explain(d, s)}</p>
       <div class="concept">
@@ -987,24 +1010,35 @@ ${batchFacts(s)}
         <button type="button" class="btn ${ok && state.level < LEVELS.length - 1 ? 'line' : ''}" data-act="change">Change your design</button>
         <button type="button" class="btn line" data-act="replay">Watch it again</button>
       </div>
-      ${ok && state.level === LEVELS.length - 1 ? `<p class="note">That's lesson 2. Next up: mobile orders, where some tickets get to skip ahead.</p>` : ''}`;
+      ${ok && state.level === LEVELS.length - 1
+        ? (next
+          ? `<p class="next-lesson">That's every level in this lesson. <a class="btn" href="${next.href}">Next lesson: ${next.title}</a></p>`
+          : '<p class="note">That\'s every level in this lesson. More lessons are on the way.</p>')
+        : ''}`;
   }
 
   function renderRunning() {
     const lv = LEVELS[state.level];
     panel.innerHTML = `
-      <p class="eyebrow">Level ${lv.id} · Run</p>
+      <div class="ticket-head"><span>LEVEL ${lv.id} · RUSH</span><span>DESIGN LOCKED</span></div>
       <h2>The rush is on</h2>
       ${goalsHTML(lv, null)}
-      <p class="quiet">Your design is locked in, just like a real system once traffic arrives. Press <strong>X-ray</strong> to switch between the shop and the system behind it.</p>
+      <p class="quiet">Your design is locked in, just like a real system once traffic arrives. Press the <strong>X-ray monitor</strong> on the shop to see the system behind it.</p>
       <p class="note">The caption under the shop tells you what each event means in software terms.</p>`;
   }
+
+  // The panel can sit in a collapsible <details> (the side ticket). Reopen it when a
+  // new brief or the debrief arrives, so a player who folded it away still sees it.
+  const panelHolder = panel.closest?.('details') ?? null;
+  let shownPhase = null;
 
   function renderPanel() {
     if (state.phase === 'design') renderDesign();
     else if (state.phase === 'run') renderRunning();
     else renderDebrief();
     renderPhase();
+    if (panelHolder && state.phase !== shownPhase && state.phase !== 'run') panelHolder.open = true;
+    shownPhase = state.phase;
   }
 
   panel.addEventListener('click', ev => {
@@ -1017,6 +1051,10 @@ ${batchFacts(s)}
     else if (act === 'rail') { d.rail = !d.rail; designChanged(); }
     else if (act === 'batch') { d.batch = !d.batch; designChanged(); }
     else if (act === 'async') { d.sync = !d.sync; designChanged(); }
+    else if (act === 'wait-minus') { d.batchWait = Math.max(0, d.batchWait - 60); designChanged(); }
+    else if (act === 'wait-plus') { d.batchWait = Math.min(360, d.batchWait + 60); designChanged(); }
+    else if (act === 'every-minus') { d.mobileEvery = Math.max(2, d.mobileEvery - 1); designChanged(); }
+    else if (act === 'every-plus') { d.mobileEvery = Math.min(6, d.mobileEvery + 1); designChanged(); }
     else if (act === 'run') startRush();
     else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); renderChart(); }
     else if (act === 'next') setLevel(state.level + 1);
@@ -1028,19 +1066,6 @@ ${batchFacts(s)}
     designChanged();
   });
   panel.addEventListener('input', ev => {
-    if (ev.target.id === 'batchWait') {
-      const minutes = Number(ev.target.value);
-      state.designs[state.level].batchWait = minutes * 60;
-      document.getElementById('waitLabel').textContent = minutes === 0 ? "Don't wait" : `Up to ${minutes} min`;
-      state.run = idleRun();
-      return;
-    }
-    if (ev.target.id === 'mobileEvery') {
-      state.designs[state.level].mobileEvery = Number(ev.target.value);
-      document.getElementById('everyN').textContent = ordinal(Number(ev.target.value));
-      state.run = idleRun();
-      return;
-    }
     if (ev.target.id !== 'capacity') return;
     state.designs[state.level].capacity = Number(ev.target.value);
     state.run = idleRun();
@@ -1048,7 +1073,7 @@ ${batchFacts(s)}
     if (strong) strong.textContent = `${ev.target.value} tickets`;
     renderChart();
   });
-  document.getElementById('levels').addEventListener('click', ev => {
+  byId('levels').addEventListener('click', ev => {
     const b = ev.target.closest('button');
     if (b && !b.disabled) setLevel(Number(b.dataset.level));
   });
@@ -1100,28 +1125,29 @@ ${batchFacts(s)}
     hud.caption.innerHTML = `${clock(run.lastEventT)}  Rush over. ${run.served} served, ${run.rejected} turned away.`;
     canvas.setAttribute('aria-label', `Coffee shop after the rush: ${run.served} served, ${run.rejected} turned away.`);
     renderLevels(); renderPanel(); renderChart();
+    if (onFinish) onFinish(state.summary);
   }
 
   // ---------- Controls ----------
-  const xrayBtn = document.getElementById('xrayBtn');
+  const xrayBtn = byId('xrayBtn');
   function setXray(on) {
     state.xray = on;
     xrayBtn.setAttribute('aria-pressed', String(on));
-    document.getElementById('xrayLabel').textContent = on ? 'X-ray on' : 'X-ray';
-    document.getElementById('key').classList.toggle('show', on);
+    xrayBtn.setAttribute('aria-label', on ? 'Showing the X-ray. Switch back to the counter' : 'Showing the counter. Open the X-ray');
+    byId('key').classList.toggle('show', on);
     xrayBtn.classList.toggle('nudge', !on && state.phase === 'run' && !state.xrayUsed);
   }
   xrayBtn.addEventListener('click', () => { state.xrayUsed = true; setXray(!state.xray); });
   document.addEventListener('keydown', ev => {
     if ((ev.key === 'x' || ev.key === 'X') && !ev.target.closest('input, textarea')) { state.xrayUsed = true; setXray(!state.xray); }
   });
-  document.getElementById('pause').addEventListener('click', () => { state.playing = !state.playing; renderPhase(); });
+  byId('pause').addEventListener('click', () => { state.playing = !state.playing; renderPhase(); });
   document.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener('change', () => { state.speed = Number(r.value); }));
 
   const hud = {
-    clock: document.getElementById('clock'), served: document.getElementById('st-served'),
-    rejected: document.getElementById('st-rejected'), wait: document.getElementById('st-wait'),
-    queue: document.getElementById('st-queue'), caption: document.getElementById('caption'),
+    clock: byId('clock'), served: byId('st-served'),
+    rejected: byId('st-rejected'), wait: byId('st-wait'),
+    queue: byId('st-queue'), caption: byId('caption'),
   };
   let lastHud = 0, lastChart = 0, lastCaptionAt = 0, lastCaption = '';
   function updateHud(now) {
@@ -1175,10 +1201,22 @@ ${batchFacts(s)}
     canvas.height = Math.round(H * scale);
     backLayer = layer(drawBack); frontLayer = layer(drawFront); shadeLayer = layer(drawShade);
   }
-  new ResizeObserver(resize).observe(document.getElementById('scene'));
+  new ResizeObserver(resize).observe(byId('scene'));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(resize);
 
   resize();
   setLevel(0);
   requestAnimationFrame(frame);
+
+  return {
+    /** Jump to a level, change its design, and run the rush. */
+    play(levelIndex, designChanges = {}) {
+      setLevel(levelIndex);
+      Object.assign(state.designs[levelIndex], designChanges);
+      startRush();
+    },
+    setXray(on) { setXray(on); },
+    get xray() { return state.xray; },
+    setSpeed(n) { state.speed = n; },
+  };
 }

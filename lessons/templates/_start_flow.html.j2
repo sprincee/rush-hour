@@ -1,0 +1,69 @@
+{# "Start lesson 1": a swipeable intro, then "Have you played before?". No adds a how-to-play slideshow. #}
+<dialog class="start" id="start" aria-label="Start lesson 1">
+  <div class="start-top">
+    <span class="stub" id="start-label">Welcome to Rush Hour</span>
+    <button type="button" class="start-close" data-close aria-label="Close">✕</button>
+  </div>
+
+  <div class="slides" data-track="intro" tabindex="0" aria-roledescription="carousel">
+    <section class="slide" aria-roledescription="slide" aria-label="1 of 4">
+      <div class="slide-art art-rush" aria-hidden="true">
+        <span class="clock-face">8:05</span>
+        <span class="t t1">#01 LATTE</span><span class="t t2">#02 DRIP</span><span class="t t3">#03 CAPP</span><span class="t t4">#04 LATTE</span>
+      </div>
+      <p class="stub">You run the morning shift</p>
+      <h2>It's 8:05. The rush is coming.</h2>
+      <p>Fifty commuters, two baristas, and one ticket printer. Every lesson is one of these mornings.</p>
+    </section>
+    <section class="slide" aria-roledescription="slide" aria-label="2 of 4">
+      <div class="slide-art art-levers" aria-hidden="true">
+        <span class="lever"><span class="lever-name">Baristas</span><span class="lever-step">− 3 +</span></span>
+        <span class="lever"><span class="lever-name">Ticket rail</span><span class="lever-switch">On</span></span>
+        <span class="lever"><span class="lever-name">Walk-ins first</span><span class="lever-switch off">Off</span></span>
+      </div>
+      <p class="stub">Design the shop</p>
+      <h2>Every part of your shop is a real system design choice.</h2>
+      <p>Baristas are workers. The ticket rail is a queue. Who goes first is a scheduling policy. You decide, then the rush decides if you were right.</p>
+    </section>
+    <section class="slide" aria-roledescription="slide" aria-label="3 of 4">
+      <div class="slide-art art-xray" aria-hidden="true">
+        <span class="half counter-half">Counter</span>
+        <span class="half xray-half">X-ray</span>
+      </div>
+      <p class="stub">Flip the X-ray</p>
+      <h2>See the software underneath.</h2>
+      <p>One press turns the shop into the system behind it: the API, the queue, the workers, and every request moving through them.</p>
+    </section>
+    <section class="slide slide-ask" aria-roledescription="slide" aria-label="4 of 4">
+      <p class="stub">One question</p>
+      <h2>Have you played before?</h2>
+      <div class="ask-actions">
+        <a class="btn-primary" href="{{ first_lesson }}.html">Yes, take me to lesson 1 <span class="arrow">→</span></a>
+        <button type="button" class="btn-quiet" data-howto>No, show me how it works</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="slides" data-track="howto" tabindex="0" aria-roledescription="carousel" hidden>
+    {% for step in course.steps %}
+    <section class="slide" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ course.steps | length }}">
+      <div class="tickets"><div class="ticket howto-ticket">
+        <div class="ticket-head"><span>Step {{ loop.index }} of {{ course.steps | length }}</span><span>{{ step.sys }}</span></div>
+        <h2>{{ step.name }}</h2>
+        <p>{{ step.text }}</p>
+      </div></div>
+      {% if loop.last %}
+      <div class="ask-actions">
+        <a class="btn-primary" href="{{ first_lesson }}.html">Start lesson 1 <span class="arrow">→</span></a>
+      </div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="start-bottom">
+    <button type="button" class="btn-quiet slide-back" data-back aria-label="Previous slide">←</button>
+    <div class="slide-dots" aria-hidden="true"></div>
+    <button type="button" class="btn-primary slide-next" data-next>Next <span class="arrow">→</span></button>
+  </div>
+</dialog>

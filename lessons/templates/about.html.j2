@@ -1,0 +1,50 @@
+{% extends "base.html.j2" %}
+{% block title %}About · Rush Hour{% endblock %}
+{% block description %}How Rush Hour works: a browser game checked against a real Kubernetes system.{% endblock %}
+{% block body_class %}about-page{% endblock %}
+{% block body %}
+<main class="wrap about">
+  <section class="section-head about-head">
+    <p class="stub">About</p>
+    <h1>The game isn't guessing.</h1>
+    <p>Rush Hour teaches system design through a coffee shop. Behind the game is a real shop: an order API, a Redis Streams queue, and baristas running as Kubernetes Pods. Every lesson's rush is sent to that cluster for real, and the game has to match what it measures.</p>
+  </section>
+
+  <section class="about-grid">
+    <div class="about-copy">
+      <h2>How it stays honest</h2>
+      <ul class="proof-points">
+        <li>The game and the cluster read one settings file: the menu, the prep times, and every rush.</li>
+        <li>The same customers arrive at the same moments, in the game and on the cluster.</li>
+        <li>Recorded rushes are replayed against the game on every change, and the tests fail if it drifts.</li>
+        <li>Each level's verdict has to hold up under small timing noise, not just one lucky run.</li>
+      </ul>
+
+      <h2>What's under the counter</h2>
+      <ul class="stack">
+        {% for item in course.stack %}
+        <li><span class="stack-name">{{ item.name }}</span><span class="stack-role">{{ item.role }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="tickets">
+      <div class="ticket">
+        <div class="ticket-head"><span>Calibration receipt</span><span>{{ course.proof_date }}</span></div>
+        <ul class="receipt-lines">
+          <li class="head"><span class="what">Longest wait, in shop minutes</span><span class="val">Game</span><span class="val">Real</span></li>
+          {% for p in course.proof %}
+          <li><span class="what">{{ p.lesson }}<small>{{ p.design }}</small></span><span class="val">{{ '%.1f' % p.game }}</span><span class="val">{{ '%.1f' % p.real }}</span></li>
+          {% endfor %}
+        </ul>
+        <div class="receipt-total"><span>Total</span><span class="badge ok">✓ {{ course.proof_total }}</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="about-author">
+    <h2>Who made this</h2>
+    <p>Rush Hour is built by Mahad Khan, an information systems student, as a way to learn Kubernetes and observability and to share that with other students. Several lessons come straight from how a real coffee shop runs, like batching milk for two lattes.</p>
+  </section>
+</main>
+{% endblock %}

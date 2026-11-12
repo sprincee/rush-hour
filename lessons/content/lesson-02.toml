@@ -1,6 +1,7 @@
 # Lesson 2's page. Levels, goals and debrief text live in web/src/lessons/lesson2.mjs.
 slug = "order-line"
 module = "lesson2.mjs"
+levels = 3
 eyebrow = "Group A · The flow · Lesson 2 of 12"
 heading = "The order line"
 description = "Design a coffee shop's system, run the 8:05 rush, and X-ray it to see the queue behind the ticket rail."

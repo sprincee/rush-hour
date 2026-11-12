@@ -3,8 +3,9 @@
     python lessons/build.py              # Full site: dist/index.html plus one page per lesson
     python lessons/build.py --fragment   # Pages without <html>/<body>, for an Artifact preview
 
-Lesson text comes from lessons/content/*.toml. The game code is web/src, and the
-shop settings are shop/config.json, the same file the cluster reads.
+Lesson text comes from lessons/content/*.toml. The game code is web/src, fonts are
+web/static/fonts, and the shop settings are shop/config.json, the same file the
+cluster reads. Visual rules live in DESIGN_RH.md.
 """
 
 import argparse
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONTENT = ROOT / "lessons" / "content"
 TEMPLATES = ROOT / "lessons" / "templates"
 WEB_SRC = ROOT / "web" / "src"
+FONTS = ROOT / "web" / "static" / "fonts"
 SHOP_CONFIG = ROOT / "shop" / "config.json"
 
 
@@ -30,12 +32,42 @@ def load_toml(path: Path) -> dict:
 
 
 def copy_assets(out: Path) -> None:
-    """Game modules, the stylesheet, and the shared shop settings."""
+    """Game modules, stylesheets, fonts and their licenses, and the shared shop settings."""
     assets = out / "assets"
     shutil.copytree(WEB_SRC, assets / "js", ignore=shutil.ignore_patterns("styles"))
-    (assets / "css").mkdir(parents=True)
-    shutil.copy2(WEB_SRC / "styles" / "lesson.css", assets / "css" / "lesson.css")
+    shutil.copytree(WEB_SRC / "styles", assets / "css")
+    shutil.copytree(FONTS, assets / "fonts")
     shutil.copy2(SHOP_CONFIG, assets / "shop-config.json")
+
+
+def load_course() -> tuple[dict, dict[str, dict]]:
+    """The course, with each playable lesson joined to its own content file."""
+    course = load_toml(CONTENT / "course.toml")
+    lessons = {}
+    for path in sorted(CONTENT.glob("lesson-*.toml")):
+        lesson = load_toml(path)
+        if not (WEB_SRC / "lessons" / lesson["module"]).exists():
+            raise FileNotFoundError(f"{path.name}: web/src/lessons/{lesson['module']} doesn't exist")
+        lessons[lesson["slug"]] = lesson
+
+    for group in course["groups"]:
+        group["playable"], group["soon"] = [], []
+        for entry in group["lessons"]:
+            page = entry.get("page")
+            if page:
+                if page not in lessons:
+                    raise ValueError(f"course.toml links {page!r}, but no lesson file has that slug")
+                lesson = lessons[page]
+                entry.update(heading=lesson["heading"], levels=lesson["levels"])
+                lesson.update(number=entry["number"], concept=entry["concept"], coffee=entry["coffee"])
+                group["playable"].append(entry)
+            else:
+                group["soon"].append(entry)
+    linked = {e.get("page") for g in course["groups"] for e in g["lessons"]}
+    for slug in lessons:
+        if slug not in linked:
+            raise ValueError(f"lesson {slug!r} isn't linked from course.toml")
+    return course, lessons
 
 
 def build(out: Path, fragment: bool) -> list[Path]:
@@ -51,24 +83,30 @@ def build(out: Path, fragment: bool) -> list[Path]:
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    course, lessons = load_course()
+    playable = [e for g in course["groups"] for e in g["playable"]]
+    shared = {
+        "course": course,
+        "fragment": fragment,
+        "first_lesson": playable[0]["page"],
+    }
     written = []
 
-    course = load_toml(CONTENT / "course.toml")
-    playable = {lesson["page"] for g in course["groups"] for lesson in g["lessons"] if "page" in lesson}
+    def render(template: str, filename: str, page: str, **context) -> None:
+        """`page` marks the current nav link (home, menu, about, lesson)."""
+        path = out / filename
+        path.write_text(env.get_template(template).render(**shared, page=page, **context), encoding="utf-8")
+        written.append(path)
 
-    index = out / "index.html"
-    index.write_text(env.get_template("index.html.j2").render(course=course, fragment=fragment), encoding="utf-8")
-    written.append(index)
+    total_levels = sum(e["levels"] for e in playable)
+    render("index.html.j2", "index.html", "home", playable=playable, total_levels=total_levels)
+    render("menu.html.j2", "menu.html", "menu", playable=playable)
+    render("about.html.j2", "about.html", "about")
 
-    for path in sorted(CONTENT.glob("lesson-*.toml")):
-        lesson = load_toml(path)
-        if lesson["slug"] not in playable:
-            raise ValueError(f"{path.name}: slug {lesson['slug']!r} isn't linked from course.toml")
-        if not (WEB_SRC / "lessons" / lesson["module"]).exists():
-            raise FileNotFoundError(f"{path.name}: web/src/lessons/{lesson['module']} doesn't exist")
-        page = out / f"{lesson['slug']}.html"
-        page.write_text(env.get_template("lesson.html.j2").render(lesson=lesson, fragment=fragment), encoding="utf-8")
-        written.append(page)
+    for i, entry in enumerate(playable):
+        lesson = lessons[entry["page"]]
+        next_entry = playable[i + 1] if i + 1 < len(playable) else None
+        render("lesson.html.j2", f"{lesson['slug']}.html", "lesson", lesson=lesson, next=next_entry)
 
     return written
 

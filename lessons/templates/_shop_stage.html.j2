@@ -1,0 +1,9 @@
+{# The shop window: the canvas, the shop clock, and the X-ray monitor. Shared by the homepage demo and every lesson. #}
+<div class="scene" id="scene">
+  <canvas id="shop" role="img" aria-label="An illustrated coffee shop."></canvas>
+  <div class="chip"><span id="clock">8:05 am</span><small>Shop clock · 60× faster</small></div>
+  <button type="button" class="monitor" id="xrayBtn" aria-pressed="true" aria-label="Showing the X-ray. Switch back to the counter">
+    <span class="monitor-screen"><span class="m-counter">Counter</span><span class="m-xray">X-ray</span></span>
+    <span class="monitor-stand" aria-hidden="true"></span>
+  </button>
+</div>

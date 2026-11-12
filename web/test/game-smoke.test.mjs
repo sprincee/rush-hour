@@ -26,7 +26,8 @@ function fakeContext() {
   });
 }
 
-function fakePage() {
+// only: if given, the page has just these element ids (like the homepage demo).
+function fakePage({ only } = {}) {
   const ctx = fakeContext();
   const elements = {};
   const make = id => ({
@@ -39,8 +40,9 @@ function fakePage() {
   });
   let frame = null;
   globalThis.document = {
-    getElementById: id => (elements[id] ||= make(id)),
-    createElement: () => ({ width: 0, height: 0, getContext: () => ctx }),
+    getElementById: id => (only && !only.includes(id) ? null : (elements[id] ||= make(id))),
+    // Canvases for the drawing layers; anything else is a stand-in element, as in a browser.
+    createElement: tag => (tag === 'canvas' ? { width: 0, height: 0, getContext: () => ctx } : make(tag)),
     querySelectorAll: () => [],
     addEventListener() {},
   };
@@ -54,8 +56,15 @@ function fakePage() {
     clickLevel: i => fire('levels', 'click', button({ level: String(i) })),
     act: name => fire('panel', 'click', button({ act: name })),
     choosePolicy: value => fire('panel', 'change', { name: 'policy', value }),
-    setEvery: n => fire('panel', 'input', { id: 'mobileEvery', value: String(n) }),
-    setBatchWait: minutes => fire('panel', 'input', { id: 'batchWait', value: String(minutes) }),
+    // Steppers: step all the way down, then up to the value.
+    setEvery: n => {
+      for (let i = 0; i < 6; i++) fire('panel', 'click', button({ act: 'every-minus' }));
+      for (let i = 2; i < n; i++) fire('panel', 'click', button({ act: 'every-plus' }));
+    },
+    setBatchWait: minutes => {
+      for (let i = 0; i < 6; i++) fire('panel', 'click', button({ act: 'wait-minus' }));
+      for (let i = 0; i < minutes; i++) fire('panel', 'click', button({ act: 'wait-plus' }));
+    },
     toggleXray: () => elements.xrayBtn.listeners.click.forEach(fn => fn()),
     runFrames(maxFrames, until) {
       let now = 1000;
@@ -75,7 +84,7 @@ function playLevel(page, i, choose) {
   page.act('run');
   page.runFrames(200, () => false); // Shop view for a while.
   page.toggleXray(); // Then the X-ray, mid-rush.
-  const frames = page.runFrames(5000, () => page.elements.panel.innerHTML.includes('Debrief'));
+  const frames = page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
   assert.ok(frames >= 0, `level ${i + 1}: the rush never finished`);
   page.toggleXray();
   return page.elements.panel.innerHTML;
@@ -91,6 +100,41 @@ test('every lesson 2 level plays to a debrief, and the verdict matches the engin
     const expected = lesson2.evaluate(level, level.start, summarize(run(level.start, { rush: level.rush }))).passed;
     assert.equal(verdict(html), expected ? 'pass' : 'fail', `level ${level.id}`);
   });
+});
+
+test('the homepage demo runs with only the shop window on the page, and loops', () => {
+  const page = fakePage({ only: ['scene', 'shop', 'clock', 'xrayBtn', 'caption'] });
+  let finished = 0;
+  const demo = startGame({ config, lesson: lesson4, onFinish: () => { finished++; } });
+  demo.play(2, { policy: 'weighted', mobileEvery: 3, batch: true });
+  assert.ok(page.runFrames(6000, () => finished === 1) >= 0, 'the first demo rush never finished');
+  demo.setXray(true);
+  assert.equal(demo.xray, true);
+  demo.play(2, { policy: 'weighted', mobileEvery: 3, batch: true });
+  assert.ok(page.runFrames(6000, () => finished === 2) >= 0, 'the demo did not loop');
+  assert.ok(page.elements.caption.innerHTML.includes('Rush over'), 'the caption reports the rush');
+});
+
+test('a folded-away level ticket reopens for the debrief and the next brief', () => {
+  const page = fakePage();
+  const holder = { open: true }; // The <details> the panel sits in on lesson pages.
+  document.getElementById('panel').closest = sel => (sel === 'details' ? holder : null);
+  startGame({ config, lesson: lesson2 });
+  page.clickLevel(0);
+  page.act('run');
+  holder.open = false; // The player folds the ticket away during the rush.
+  page.runFrames(10, () => false);
+  assert.ok(!page.elements.panel.innerHTML.includes('· DEBRIEF'), 'still mid-rush');
+  assert.equal(holder.open, false, 'the rush should not reopen it');
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.equal(holder.open, true, 'the debrief reopens it');
+});
+
+test('the last level links to the next lesson', () => {
+  const page = fakePage();
+  startGame({ config, lesson: lesson1, next: { href: 'order-line.html', title: 'The order line' } });
+  const html = playLevel(page, 1, p => { p.act('async'); p.act('plus'); });
+  assert.ok(html.includes('href="order-line.html"') && html.includes('Next lesson: The order line'));
 });
 
 test('every lesson 1 level plays to a debrief, from the starting design and a winning one', () => {

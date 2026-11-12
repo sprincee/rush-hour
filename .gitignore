@@ -23,7 +23,7 @@ __pycache__/
 .coverage
 
 # Generated lesson site
-site/
+/site/
 dist/
 
 # Editor and OS

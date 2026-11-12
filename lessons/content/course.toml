@@ -1,7 +1,117 @@
 # The course home page. A lesson with a `page` is playable; the rest show as coming soon.
 title = "Rush Hour"
 heading = "Learn system design by running a coffee shop"
-tagline = "Design the shop, send in the morning rush, and X-ray it to see the software system behind it. Every lesson is also checked against a real Kubernetes cluster."
+tagline = "Design the shop, send in the morning rush, then flip on the X-ray to see the queues, workers and APIs underneath. Every lesson is checked against a real Kubernetes cluster."
+# The calibration receipt on the homepage. Keys must come before the first [[table]].
+proof_date = "2026-11-12"
+proof_total = "10 of 10 match within 10%"
+
+# The real system, listed on the About page.
+[[stack]]
+name = "Browser game"
+role = "Event-based simulation, plain JavaScript, no framework"
+
+[[stack]]
+name = "Kubernetes (k3s)"
+role = "Runs the register, the baristas, and the rush"
+
+[[stack]]
+name = "Redis Streams"
+role = "The ticket rails: walk-in and app queues, with crash recovery"
+
+[[stack]]
+name = "Python and FastAPI"
+role = "The register's order API and the barista workers"
+
+[[stack]]
+name = "k6"
+role = "Sends each rush: the same customers the game simulates"
+
+[[stack]]
+name = "Prometheus and Grafana"
+role = "Measures every rush, with the game's goals as SLOs"
+
+# How a level works, shown in the start flow.
+[[steps]]
+name = "Read the brief"
+sys = "Requirements"
+text = "A rush is coming. You get goals, like nobody waits more than 15 minutes, and a budget."
+
+[[steps]]
+name = "Design the shop"
+sys = "Architecture"
+text = "Hire baristas, add a ticket rail, pick who gets served first. Every part has a real system design name."
+
+[[steps]]
+name = "Run the rush"
+sys = "Load test"
+text = "Your design is locked in and the customers arrive. Press the X-ray monitor to watch the system underneath."
+
+[[steps]]
+name = "Read the receipt"
+sys = "SLOs and metrics"
+text = "See which goals you met, what happened and why, and the concept behind it. Then try a better design."
+
+# Real rushes on the cluster, compared with the game (web/test/calibration.test.mjs).
+[[proof]]
+lesson = "Lesson 1: the cashier waits"
+design = "Sync register, 3 baristas"
+game = 37.5
+real = 35.6
+
+[[proof]]
+lesson = "Lesson 1: we'll call your name"
+design = "Async register, 2 baristas"
+game = 9.6
+real = 9.6
+
+[[proof]]
+lesson = "Lesson 1: a fast answer"
+design = "Async register, 3 baristas"
+game = 4.5
+real = 4.6
+
+[[proof]]
+lesson = "Lesson 2: the order line"
+design = "Ticket rail, 2 baristas"
+game = 54.8
+real = 54.9
+
+[[proof]]
+lesson = "Lesson 3: two printers"
+design = "Walk-ins first, app orders"
+game = 19.8
+real = 19.9
+
+[[proof]]
+lesson = "Lesson 3: starvation"
+design = "Walk-ins first, app orders"
+game = 32.2
+real = 32.2
+
+[[proof]]
+lesson = "Lesson 3: fair share"
+design = "Every 5th from the app, app orders"
+game = 26.2
+real = 26.3
+
+[[proof]]
+lesson = "Lesson 4: steam for two"
+design = "Batching, 2 baristas"
+game = 15.7
+real = 15.7
+
+[[proof]]
+lesson = "Lesson 4: the batch window"
+design = "3-minute window"
+game = 6.0
+real = 6.1
+
+[[proof]]
+lesson = "Lesson 4: the app rush"
+design = "Every 3rd + batching, app orders"
+game = 8.4
+real = 8.3
 
 [[groups]]
 id = "A"
