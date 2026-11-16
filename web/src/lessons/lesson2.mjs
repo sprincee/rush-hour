@@ -10,7 +10,7 @@ export const LEVELS = [
     id: '2.1', name: 'Nobody walks out', budget: 40, rush: 'lesson-2',
     brief: 'Fifty commuters will walk in over the next ten minutes. Right now the cashier only takes an order if a barista can start it on the spot. Anyone else walks out. Design a shop where nobody has to leave.',
     start: { baristas: 2, rail: false, capacity: Infinity }, capacityUnlocked: false,
-    goals: [{ label: 'Serve all 50 customers', got: s => `${s.served} served`, ok: s => s.rejected === 0 }],
+    goals: [{ live: { kind: 'serveAll' }, label: 'Serve all 50 customers', got: s => `${s.served} served`, ok: s => s.rejected === 0 }],
     concept: {
       term: 'Queue',
       body: 'A queue lets a system accept work now and do it later. Without one, a request that arrives while every worker is busy has to be rejected, even though the workers would be free a minute later.',
@@ -22,8 +22,8 @@ export const LEVELS = [
     brief: 'Everyone got a drink, but some people waited close to an hour. Your manager wants every drink out within 40 minutes of walking in, and gave you a bigger budget for today.',
     start: { baristas: 2, rail: true, capacity: Infinity }, capacityUnlocked: false,
     goals: [
-      { label: 'Serve all 50 customers', got: s => `${s.served} served`, ok: s => s.rejected === 0 },
-      { label: 'Nobody waits more than 40 minutes', got: s => `longest ${s.longestWaitMin.toFixed(1)} min`, ok: s => s.longestWaitMin <= 40 },
+      { live: { kind: 'serveAll' }, label: 'Serve all 50 customers', got: s => `${s.served} served`, ok: s => s.rejected === 0 },
+      { live: { kind: 'wait', limit: 40 }, label: 'Nobody waits more than 40 minutes', got: s => `longest ${s.longestWaitMin.toFixed(1)} min`, ok: s => s.longestWaitMin <= 40 },
     ],
     concept: {
       term: 'Throughput',
@@ -36,8 +36,8 @@ export const LEVELS = [
     brief: 'Waiting 30 minutes for a latte is worse than going somewhere else. Your manager says nobody should wait more than 20 minutes. When the rail is full, the cashier should apologize and turn people away. Decide how many tickets the rail can hold.',
     start: { baristas: 2, rail: true, capacity: 30 }, capacityUnlocked: true,
     goals: [
-      { label: 'Nobody waits more than 20 minutes', got: s => `longest ${s.longestWaitMin.toFixed(1)} min`, ok: s => s.longestWaitMin <= 20 },
-      { label: 'Turn away 25 customers or fewer', got: s => `${s.rejected} turned away`, ok: s => s.rejected <= 25 },
+      { live: { kind: 'wait', limit: 20 }, label: 'Nobody waits more than 20 minutes', got: s => `longest ${s.longestWaitMin.toFixed(1)} min`, ok: s => s.longestWaitMin <= 20 },
+      { live: { kind: 'atMost', of: 'rejected', limit: 25 }, label: 'Turn away 25 customers or fewer', got: s => `${s.rejected} turned away`, ok: s => s.rejected <= 25 },
     ],
     concept: {
       term: 'Bounded queue',
@@ -58,6 +58,32 @@ export const LOCKED = [
 // Drinks per minute: baristas divided by the average drink time (about 2.55 shop minutes).
 const throughput = d => (d.baristas / 2.55).toFixed(1);
 const mins = s => s.longestWaitMin.toFixed(1);
+
+// Freeze frames: the rush pauses the first time each of these happens in a visit, with a
+// card in shop words plus the software term. `on` is the trigger (see shop-game.mjs);
+// `level`, `why`, and `goal` narrow it. `xray: true` flips the X-ray on for the moment.
+export const MOMENTS = [
+  {
+    id: 'walkout', on: 'rejected', why: 'noqueue', title: 'Nowhere to wait',
+    text: ({ c, d }) => `All ${d.baristas} baristas are busy, so customer ${c.id} walks out.`,
+    soft: 'With no free worker and no queue, the API answers <b>503</b>. The order is lost, even though a barista frees up a minute later.',
+  },
+  {
+    id: 'queued', on: 'queued', title: 'First ticket on the rail', xray: true,
+    text: ({ ticket }) => `Every barista is busy, so customer ${ticket.id}'s order waits on the rail.`,
+    soft: 'The API <b>accepted</b> the request (202) and put it in a <b>queue</b>. The blue block is the message waiting. A worker takes it as soon as one is free.',
+  },
+  {
+    id: 'draining', on: 'goalRisk', level: '2.2', goal: 1, title: 'The line is getting long',
+    text: ({ run, d }) => `${run.rail.length} tickets are waiting, and ${d.baristas} baristas finish about ${throughput(d)} drinks a minute. The last ticket has roughly ${Math.round(run.rail.length / Number(throughput(d)))} more minutes to go.`,
+    soft: 'A queue holds work, but it only drains as fast as the <b>workers</b> finish it: wait ≈ tickets ahead ÷ <b>throughput</b>.',
+  },
+  {
+    id: 'rail-full', on: 'rejected', why: 'full', title: 'The rail is full',
+    text: ({ c, d }) => `The rail holds ${d.capacity} tickets, so the cashier says sorry to customer ${c.id}.`,
+    soft: 'A <b>bounded queue</b> rejects new work when it is full (503), so nobody waits forever. Picking the limit is the trade-off in this level.',
+  },
+];
 
 // What happened, in system design terms. s.ok is whether every goal was met.
 LEVELS[0].explain = (d, s) => {

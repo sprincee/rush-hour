@@ -16,7 +16,7 @@ export const LEVELS = [
     start: { baristas: 3, rail: true, capacity: Infinity, sync: true },
     controls: ['baristas', 'async'],
     goals: [
-      { label: 'Nobody waits more than 15 minutes for their drink', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 15 },
+      { live: { kind: 'wait', limit: 15 }, label: 'Nobody waits more than 15 minutes for their drink', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 15 },
     ],
     concept: {
       term: 'Synchronous vs asynchronous',
@@ -30,8 +30,8 @@ export const LEVELS = [
     start: { baristas: 2, rail: true, capacity: Infinity, sync: true },
     controls: ['baristas', 'async'],
     goals: [
-      { label: 'Every customer gets an answer within 2 minutes', got: s => `longest ${answer(s)} min`, ok: s => s.longestAnswerMin <= 2 },
-      { label: 'Every drink is ready within 10 minutes', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 10 },
+      { live: { kind: 'answer', limit: 2 }, label: 'Every customer gets an answer within 2 minutes', got: s => `longest ${answer(s)} min`, ok: s => s.longestAnswerMin <= 2 },
+      { live: { kind: 'wait', limit: 10 }, label: 'Every drink is ready within 10 minutes', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 10 },
     ],
     concept: {
       term: 'Response time vs processing time',

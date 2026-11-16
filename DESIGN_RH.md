@@ -175,16 +175,29 @@ All fonts are free and self-hosted from `web/static/fonts/` (no Google Fonts req
 - The X-ray toggle is a small back-office monitor in the corner of the shop window, with `COUNTER | X-RAY` on its screen. The lit half shows the current view. Press it, or press X.
 - On the homepage demo it flips by itself every 7 seconds until the visitor presses it.
 
+### Freeze frames (teaching moments)
+- Built 2026-11-16. The first time something important happens, the rush pauses. The shop dims around a pulsing spotlight on the spot, a soft chime plays, and a ticket-colored card appears. Its parts: a ticket-font title with ⏸, one line in shop words using the rush's own numbers, then `IN SOFTWARE` and the system term in bold.
+- **Got it**, a tap anywhere, Space, or Enter carries on. The simulation only pauses, so results never change.
+- Each moment shows once per lesson per visit. It's always on, with no switch; remembering which ones a player has seen waits for accounts.
+- Moments about the system underneath (like the first ticket on the rail) flip the X-ray on.
+- Phones: the card sits under the shop. Wider screens: it floats beside the spotlight.
+- Moments are lesson copy: `MOMENTS` in each lesson file, with a trigger (`rejected`, `queued`, `goalRisk`, `goalMissed`) and optional filters (`level`, `why`, `goal`).
+
 ### Goal badges (SLOs)
-- Ticket font, uppercase: `ON TIME`, `AT RISK`, `MISSED`. Each has an icon (✓ ! ✕) and a status color, and the target sits next to it: `WAIT < 3:00 · 2:14`.
-- These match the Grafana "Goals (SLOs)" row word for word.
+- Ticket font, uppercase. Before the rush: `GOAL`. During the rush, live (built 2026-11-16): `ON TRACK` (`--ok`), `AT RISK` (`--warn`, from 75% of the limit, with a pulsing meter and a soft double blip), `MISSED` (filled `--bad`, with a pop, a small jolt and the "bad" sound). At the end: `MET` or `MISSED`.
+- Each goal on the running ticket has a meter. For a limit, the limit line sits at 80% of the meter, so a goal going over is visible. For "serve everyone", it shows progress (`31 / 50 served`).
+- A goal never comes back from `MISSED`. The live wait counts people still waiting, so a goal breaks the moment someone's wait passes the limit. `web/test/live-goals.test.mjs` proves the meters agree with the debrief for every level.
+- The same badges sit in a strip under the shop stats on phones, and on desktop when the ticket is folded away.
+- Each lesson goal has a `live` description (`web/src/game/live-goals.mjs` lists the kinds).
 
 ### Live panel frame (Grafana or snapshot)
 - A dark frame labeled "BACK OFFICE MONITOR", using the X-ray tokens, with a live dot that pulses `--xr-ok` once every 2s.
 - When the server is waking or the panel is showing a recorded run, the label says `RECORDED RUN · 2026-11-11` in `--xr-warn`. Never present a recording as live.
 
 ### Debrief
-- A long receipt: line items for what happened, a dashed rule, then the "total" (which goal was met or missed), and a one-line takeaway in body font.
+- The payoff moment of every level (built 2026-11-16). The receipt prints one line per goal plus the budget, with a printer chirp. Each number counts up from zero, and each line gets a ✓ or ✕ that pops in. Then a rubber stamp lands (**GOALS MET** in `--ok`, **NOT YET** in `--bad`), jolting the ticket.
+- After the stamp come "What happened" (the lesson, in the player's own numbers) and the buttons. The full receipt numbers and the concept card fold away under "Your receipt" and "In software terms". The SLO note shows only on the first debrief of a visit.
+- Tapping the ticket skips straight to the stamp. With reduced motion, everything shows at once.
 
 ### Layout: mobile first
 Most players will be on phones. Base CSS is the phone layout, and `min-width` queries add room (600px, 640px, 1000px, 1100px). Check every change at 375px wide first.
@@ -207,9 +220,16 @@ Rules every page follows:
 
 ## 7. Motion
 
-- Timing is quick and mechanical, like a ticket printer: 150–250ms with `cubic-bezier(.2,.7,.2,1)`. Nothing bounces.
-- Motion explains state (a ticket moves into the line, a barista picks it up). It is never decoration.
-- With `prefers-reduced-motion: reduce`, the game still runs, but UI transitions are instant and the live dot stops pulsing.
+- Everyday UI is quick and mechanical, like a ticket printer: 150–250ms with `cubic-bezier(.2,.7,.2,1)`, with no overshoot.
+- **Payoff moments may overshoot** (the owner's call, 2026-11-16): stamps landing, marks popping, scores and badges. They're the game's reward, so they get a little weight and bounce. Keep them short (under 400ms each), and never use overshoot on buttons, panels, or navigation.
+- Motion explains state (a ticket moves into the line, a barista picks it up, a goal is met). It is never decoration.
+- Effects over the shop (steam puffs, pop-ups over customers, zooms) go on a separate layer above the canvas, so the frozen canvas drawing is never edited.
+- With `prefers-reduced-motion: reduce`, the game still runs, but UI transitions are instant, payoff animations are skipped, and the live dot stops pulsing.
+
+### Sound
+- `web/src/game/sound.mjs` makes every sound with Web Audio, so there are no audio files. They're placeholders for testing; recorded sounds can replace them later under the same names (`print`, `good`, `bad`, `stamp`, `stampMiss`, `tick`).
+- Sound starts on the player's first click or key press (browsers require that). The **Sound on / off** button is in the shop controls and is remembered per browser.
+- Sounds mark state changes, like motion does: a ticket printing, a goal met or missed, the stamp. No music or looping background for now. The homepage demo is always silent.
 
 ## 8. Voice in the UI
 

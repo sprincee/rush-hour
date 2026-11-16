@@ -15,7 +15,7 @@ export const LEVELS = [
     start: { baristas: 2, rail: true, capacity: Infinity, batch: false, batchWait: 0 },
     controls: ['baristas', 'batch'],
     goals: [
-      { label: 'Nobody waits more than 20 minutes', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 20 },
+      { live: { kind: 'wait', limit: 20 }, label: 'Nobody waits more than 20 minutes', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 20 },
     ],
     concept: {
       term: 'Batching',
@@ -29,8 +29,8 @@ export const LEVELS = [
     start: { baristas: 2, rail: true, capacity: Infinity, batch: true, batchWait: 0 },
     controls: ['batchWait'],
     goals: [
-      { label: 'Nobody waits more than 8 minutes', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 8 },
-      { label: 'Steam 9 pitchers or fewer', got: s => `${s.steams} pitchers`, ok: s => s.steams <= 9 },
+      { live: { kind: 'wait', limit: 8 }, label: 'Nobody waits more than 8 minutes', got: s => `longest ${wait(s)} min`, ok: s => s.longestWaitMin <= 8 },
+      { live: { kind: 'atMost', of: 'steams', limit: 9 }, label: 'Steam 9 pitchers or fewer', got: s => `${s.steams} pitchers`, ok: s => s.steams <= 9 },
     ],
     concept: {
       term: 'Batch window',
@@ -45,8 +45,8 @@ export const LEVELS = [
     controls: ['baristas', 'policy', 'batch'],
     policies: ['fifo', 'walkin', 'mobile', 'weighted'],
     goals: [
-      { label: 'Walk-ins wait 15 minutes or less', got: s => `longest ${s.walkin.longestWaitMin.toFixed(1)} min`, ok: s => s.walkin.longestWaitMin <= 15 },
-      { label: 'App orders ready within 10 minutes', got: s => `longest ${s.mobile.longestWaitMin.toFixed(1)} min`, ok: s => s.mobile.longestWaitMin <= 10 },
+      { live: { kind: 'wait', limit: 15, channel: 'walkin' }, label: 'Walk-ins wait 15 minutes or less', got: s => `longest ${s.walkin.longestWaitMin.toFixed(1)} min`, ok: s => s.walkin.longestWaitMin <= 15 },
+      { live: { kind: 'wait', limit: 10, channel: 'mobile' }, label: 'App orders ready within 10 minutes', got: s => `longest ${s.mobile.longestWaitMin.toFixed(1)} min`, ok: s => s.mobile.longestWaitMin <= 10 },
     ],
     concept: {
       term: 'Do less work, and share it fairly',

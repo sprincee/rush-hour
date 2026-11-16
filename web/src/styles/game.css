@@ -180,6 +180,128 @@
   .concept p:last-child { margin-bottom: 0; }
   .panel code { font: 500 0.86em var(--font-ticket); background: var(--milk); padding: 1px 5px; border-radius: 4px; }
 
+  /* The debrief, v2: a receipt that prints line by line, then a rubber stamp.
+     Motion lives in the "payoff moments" block below; without it, everything just shows. */
+  .panel .debrief-title { font-size: var(--t-lg); margin-bottom: var(--s-3); }
+  .tally { list-style: none; margin: 0; padding: 0; font: 500 var(--t-sm)/1.35 var(--font-ticket); border-top: 1.5px dashed var(--counter); }
+  .tally li { display: grid; grid-template-columns: minmax(0, 1fr) auto 22px; gap: var(--s-3); align-items: baseline; padding: 10px 0; border-bottom: 1.5px dashed var(--counter); }
+  .tally-got { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .tally .mark { font: 700 1rem/1 var(--font-ticket); text-align: center; display: inline-block; }
+  .tally li.ok .mark { color: var(--ok); }
+  .tally li.bad .mark, .tally li.bad .tally-got { color: var(--bad); }
+  .stamp-row { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; margin: var(--s-5) 0 var(--s-4); }
+  .panel .stamp {
+    margin: 0; display: inline-block; padding: 9px 14px 7px; border: 3px solid currentColor; border-radius: 6px;
+    font: 800 1.85rem/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.01em;
+    transform: rotate(-4deg); max-width: none;
+  }
+  .stamp.ok { color: var(--ok); }
+  .stamp.no { color: var(--bad); }
+  .stamp-sub { font: 600 var(--t-xs)/1.2 var(--font-ticket); letter-spacing: 0.08em; color: var(--ink-muted); }
+  .panel .what { font-size: 1.04rem; line-height: 1.55; }
+  .reveal-late .actions { margin-top: 0; margin-bottom: var(--s-4); }
+  .fold { border-top: 1.5px dashed var(--counter); }
+  .fold > summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--s-3); padding: 13px 0;
+    font: 600 var(--t-xs)/1.2 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold-sub { color: var(--crema); margin-left: auto; text-align: right; }
+  .fold > summary::after { content: "+"; font-size: 1rem; color: var(--ink-muted); width: 1ch; }
+  .fold[open] > summary::after { content: "−"; }
+  .fold .concept { margin: 0 0 var(--s-4); }
+  .fold .facts { margin-bottom: var(--s-4); }
+  .stage #mute[aria-pressed="true"] { color: var(--espresso-muted); }
+
+  /* Live goal meters, during the rush */
+  .goals.live { gap: 0; border-top: 1.5px dashed var(--counter); margin-bottom: var(--s-4); }
+  .goals.live li { display: grid; gap: 7px; padding: 11px 0; border-bottom: 1.5px dashed var(--counter); }
+  .live-top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); }
+  .meter { position: relative; height: 10px; border-radius: 999px; background: var(--counter); }
+  .meter-fill { display: block; width: 0; height: 100%; border-radius: 999px; background: var(--ok); transition: width 160ms linear, background-color 200ms var(--ease); }
+  .meter-limit { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+  .live-goal[data-status="risk"] .meter-fill { background: var(--warn); }
+  .live-goal[data-status="missed"] .meter-fill { background: var(--bad); }
+  .live-val { font: 600 var(--t-xs)/1 var(--font-ticket); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+  .live-goal[data-status="missed"] .live-val { color: var(--bad); }
+  .live-badge.ok, .live-badge.met { color: var(--ok); border-color: var(--ok); }
+  .live-badge.risk { color: var(--warn); border-color: var(--warn); }
+  .live-badge.missed { color: var(--ticket); background: var(--bad); border-color: var(--bad); }
+
+  /* The same badges in a strip under the shop: on phones (where the ticket is below the
+     shop), and on desktop when the ticket is folded away. */
+  .goal-strip { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 2px 6px 0; }
+  .goal-strip[hidden] { display: none; }
+  .strip-goal { display: inline-flex; align-items: center; gap: 7px; font: 600 0.7rem/1.2 var(--font-ticket); letter-spacing: 0.04em; color: var(--espresso-muted); }
+  @media (min-width: 1100px) {
+    .play:has(> .side[open]) .goal-strip { display: none; }
+  }
+
+  /* Freeze frames: the shop dims around a spotlight, and a card explains the moment.
+     Phones: the card sits under the shop. Wider screens: it floats beside the spotlight. */
+  .stage { position: relative; }
+  .spot {
+    position: absolute; inset: 0; z-index: 3; cursor: pointer;
+    background: radial-gradient(circle at var(--x) var(--y), transparent 0 var(--r), rgb(22 15 10 / 0.64) calc(var(--r) + 8px));
+  }
+  .spot[hidden], .moment[hidden] { display: none; }
+  .spot::after {
+    content: ""; position: absolute; left: var(--x); top: var(--y); width: calc(var(--r) * 2); height: calc(var(--r) * 2);
+    transform: translate(-50%, -50%); border: 3px solid var(--crema-tint); border-radius: 50%;
+  }
+  .moment {
+    z-index: 4; display: grid; gap: var(--s-2); padding: var(--s-4); border-radius: var(--radius);
+    background: var(--ticket); color: var(--ink); box-shadow: 0 18px 32px -16px rgb(0 0 0 / 0.65); cursor: pointer;
+  }
+  .moment p { margin: 0; }
+  .moment-title { font: 600 var(--t-xs)/1.2 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.08em; color: var(--crema); }
+  .moment-text { font: 800 1.05rem/1.3 var(--font-display); letter-spacing: -0.01em; }
+  .moment-soft { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-muted); }
+  .moment-soft .slo { margin-right: 6px; }
+  .moment-soft b { color: var(--ink); }
+  .moment-go {
+    justify-self: end; display: inline-flex; align-items: center; gap: 8px; margin-top: var(--s-1);
+    font: 700 var(--t-sm)/1 var(--font-display); padding: 11px 16px; border: 0; border-radius: var(--radius);
+    background: var(--crema); color: var(--crema-ink); cursor: pointer;
+  }
+  .moment-go .key { font: 600 0.62rem/1 var(--font-ticket); letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 5px; border: 1px solid rgb(255 255 255 / 0.5); border-radius: 4px; }
+  @media (hover: none) { .moment-go .key { display: none; } }
+  @media (min-width: 700px) {
+    .moment { position: absolute; left: var(--x); top: var(--y); width: 340px; transform: translateX(-50%); }
+    .moment[data-side="above"] { transform: translate(-50%, -100%); }
+  }
+
+  /* Payoff moments: the only place things overshoot (DESIGN_RH.md, Motion). */
+  @media (prefers-reduced-motion: no-preference) {
+    .revealing .tally li:not(.in) { opacity: 0; transform: translateY(-8px); }
+    .revealing .stamp:not(.in), .revealing .stamp-sub { opacity: 0; }
+    .revealing .reveal-late { opacity: 0; pointer-events: none; }
+    .revealing { cursor: pointer; }
+    .tally li { transition: opacity 180ms var(--ease), transform 180ms var(--ease); }
+    .tally li.in .mark { animation: mark-pop 300ms cubic-bezier(0.3, 1.7, 0.5, 1) 360ms both; }
+    .stamp.in { animation: stamp-in 360ms cubic-bezier(0.2, 1.35, 0.4, 1) both; }
+    .stamp-sub, .reveal-late { transition: opacity 250ms var(--ease); }
+    .panel.jolt { animation: jolt 260ms var(--ease) 90ms; }
+    .flip .live-badge { animation: badge-flip 320ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+    .live-goal[data-status="risk"] .meter-fill { animation: risk-pulse 1.1s var(--ease) infinite; }
+    .live-goal[data-status="missed"].flip { animation: jolt 260ms var(--ease); }
+    .spot:not([hidden]) { animation: spot-in 220ms var(--ease); }
+    .spot::after { animation: ring 1.4s var(--ease) infinite; }
+    .moment:not([hidden]) { animation: card-in 260ms cubic-bezier(0.2, 1.3, 0.4, 1); }
+    @keyframes spot-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes ring { 0%, 100% { box-shadow: 0 0 0 0 rgb(255 236 214 / 0.5); } 60% { box-shadow: 0 0 0 10px rgb(255 236 214 / 0); } }
+    @keyframes card-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+    @keyframes badge-flip { 0% { transform: scale(0.6) rotate(-6deg); } 100% { transform: scale(1) rotate(0); } }
+    @keyframes risk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+    @keyframes mark-pop { from { transform: scale(0); } to { transform: scale(1); } }
+    @keyframes stamp-in {
+      0% { opacity: 0; transform: rotate(-14deg) scale(2.6); }
+      65% { opacity: 1; transform: rotate(-3deg) scale(0.93); }
+      100% { opacity: 1; transform: rotate(-4deg) scale(1); }
+    }
+    @keyframes jolt { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(-2px, 3px); } 65% { transform: translate(2px, -1px); } }
+  }
+
   /* The chart */
   .chart-card h2 { font-size: var(--t-lg); }
   .chart-head { display: grid; gap: 4px; }

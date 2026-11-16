@@ -22,5 +22,5 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Build failed.' -ForegroundColor Red; exit
 if ($BuildOnly) { exit 0 }
 
 # The game loads its code as modules, which browsers only allow over http, not from a file.
-Write-Host 'Serving the site at http://127.0.0.1:8080  (Ctrl+C to stop)' -ForegroundColor Green
-& $Python -m http.server 8080 --bind 127.0.0.1 --directory "$Root\dist"
+# serve.py turns off browser caching, so a normal reload always shows the latest build.
+& $Python "$Root\scripts\serve.py" 8080

@@ -3,6 +3,8 @@
 // The simulation itself is the tested engine in ../engine.mjs.
 import { createRun, processEvents, sample, completeRun, summarize, POLICIES } from '../engine.mjs';
 import { menuById } from '../arrivals.mjs';
+import { createSound } from './sound.mjs';
+import { liveGoal, shortLabel, STATUS_WORDS } from './live-goals.mjs';
 
 /**
  * Start the game on a page built from lessons/templates/_shop_game.html.j2.
@@ -16,6 +18,9 @@ export function startGame({ config, lesson, next, onFinish }) {
   // Pages may leave parts out (the homepage has only the shop), so missing elements
   // become detached stand-ins instead of errors.
   const byId = id => document.getElementById(id) || document.createElement('div');
+  // Lesson pages have the level panel; the homepage demo doesn't, and stays silent.
+  const hasPanel = Boolean(document.getElementById('panel'));
+  const sound = createSound({ enabled: hasPanel });
 
 
   
@@ -113,6 +118,7 @@ export function startGame({ config, lesson, next, onFinish }) {
       run.pops.push({ text: '202 Accepted', x: 246, y: 214, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()}. <b>→ API replied 202 Accepted${run.design.rail ? ' and added a message to the queue' : ' and handed the job to a free worker'}.</b>`;
     } else if (kind === 'rejected') {
+      trigger('rejected', { why: extra, c, track: () => ({ x: c.x ?? REGISTER_SPOT.x, y: (c.y ?? REGISTER_SPOT.y) - 40 }) });
       c.via = { ...DOOR_LANE };
       const full = extra === 'full';
       run.pops.push({ text: full ? '503 Queue full' : '503 No worker free', x: c.x, y: c.y - 74, color: COLORS.rejected, born: performance.now() });
@@ -983,38 +989,269 @@ ${batchFacts(s)}
       </dl>`;
   }
 
+  // Wrap the first number in a label so the reveal can count it up from zero.
+  const countUp = text => String(text).replace(/\d+(?:\.\d+)?/, m =>
+    `<span class="count" data-to="${m}" data-dp="${(m.split('.')[1] || '').length}">${m}</span>`);
+
   function renderDebrief() {
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
     const s = state.summary;
     const ok = lv.goals.every(g => g.ok(s));
     s.ok = ok;
+    const missed = lv.goals.filter(g => !g.ok(s)).length;
+    const cost = designCost(d);
+    const lines = [
+      ...lv.goals.map(g => ({ label: g.label, got: g.got(s), ok: g.ok(s), slo: true })),
+      { label: `Stay within the $${lv.budget} budget`, got: `$${cost} spent`, ok: cost <= lv.budget, slo: false },
+    ];
+    // The SLO note shows on the first debrief of the visit only.
+    state.sloNoteRun ??= state.run;
+    const sloNote = state.sloNoteRun === state.run
+      ? `<p class="note">Goals marked SLO are <strong>service level objectives</strong>: targets a system promises to meet. Real teams track them on dashboards like the one behind this game.</p>`
+      : '';
+    const hasNext = ok && state.level < LEVELS.length - 1;
     panel.innerHTML = `
       <div class="ticket-head"><span>LEVEL ${lv.id} · DEBRIEF</span><span>CLOSED ${clock(state.run.lastEventT)}</span></div>
-      <p class="verdict ${ok ? 'ok' : 'no'}">${ok ? 'Goals met' : 'Not yet'}</p>
-      ${goalsHTML(lv, s)}
-      <p class="note">Goals marked SLO are <strong>service level objectives</strong>: targets a system promises to meet. Real teams track them on dashboards like the one behind this game.</p>
-      <h3 class="receipt-title">Your shift</h3>
-      ${factsHTML(s, d)}
-      <div class="receipt-total"><span>TOTAL</span><span>${ok ? 'ALL GOALS MET' : `${lv.goals.filter(g => !g.ok(s)).length} GOAL${lv.goals.filter(g => !g.ok(s)).length > 1 ? 'S' : ''} MISSED`}</span></div>
-      <h3>What happened</h3>
-      <p>${lv.explain(d, s)}</p>
-      <div class="concept">
-        <div class="label">System design concept</div>
-        <h3>${lv.concept.term}</h3>
-        <p>${lv.concept.body}</p>
-        <p class="quiet">${lv.concept.real}</p>
+      <h2 class="debrief-title">${lv.name}</h2>
+      <ol class="tally">
+        ${lines.map(l => `<li class="${l.ok ? 'ok' : 'bad'}">
+          <span class="tally-label">${l.slo ? '<span class="slo">SLO</span>' : ''}${l.label}</span>
+          <span class="tally-got">${countUp(l.got)}</span>
+          <span class="mark" aria-hidden="true">${l.ok ? '✓' : '✕'}</span><span class="sr">${l.ok ? 'met' : 'missed'}</span>
+        </li>`).join('')}
+      </ol>
+      <div class="stamp-row">
+        <p class="stamp ${ok ? 'ok' : 'no'}">${ok ? 'Goals met' : 'Not yet'}</p>
+        <span class="stamp-sub">${ok ? 'ALL GOALS MET' : `${missed} GOAL${missed > 1 ? 'S' : ''} MISSED`}</span>
       </div>
-      <div class="actions">
-        ${ok && state.level < LEVELS.length - 1 ? `<button type="button" class="btn" data-act="next">Next level</button>` : ''}
-        <button type="button" class="btn ${ok && state.level < LEVELS.length - 1 ? 'line' : ''}" data-act="change">Change your design</button>
-        <button type="button" class="btn line" data-act="replay">Watch it again</button>
-      </div>
-      ${ok && state.level === LEVELS.length - 1
-        ? (next
-          ? `<p class="next-lesson">That's every level in this lesson. <a class="btn" href="${next.href}">Next lesson: ${next.title}</a></p>`
-          : '<p class="note">That\'s every level in this lesson. More lessons are on the way.</p>')
-        : ''}`;
+      <div class="reveal-late">
+        <p class="what">${lv.explain(d, s)}</p>
+        <div class="actions">
+          ${hasNext ? `<button type="button" class="btn" data-act="next">Next level</button>` : ''}
+          <button type="button" class="btn ${hasNext ? 'line' : ''}" data-act="change">Change your design</button>
+          <button type="button" class="btn line" data-act="replay">Watch it again</button>
+        </div>
+        ${ok && state.level === LEVELS.length - 1
+          ? (next
+            ? `<p class="next-lesson">That's every level in this lesson. <a class="btn" href="${next.href}">Next lesson: ${next.title}</a></p>`
+            : '<p class="note">That\'s every level in this lesson. More lessons are on the way.</p>')
+          : ''}
+        <details class="fold">
+          <summary><span>Your receipt</span><span class="fold-sub">the numbers</span></summary>
+          ${sloNote}
+          ${factsHTML(s, d)}
+        </details>
+        <details class="fold">
+          <summary><span>In software terms</span><span class="fold-sub">${lv.concept.term}</span></summary>
+          <div class="concept">
+            <h3>${lv.concept.term}</h3>
+            <p>${lv.concept.body}</p>
+            <p class="quiet">${lv.concept.real}</p>
+          </div>
+        </details>
+      </div>`;
+  }
+
+  // ---------- The debrief reveal ----------
+  // The receipt prints line by line, each number counts up and gets its mark, then the
+  // stamp lands. Timed in real milliseconds, not shop time. A tap on the ticket skips it.
+  const REVEAL = { first: 250, gap: 420, count: 360, stampAfter: 300, settle: 400 };
+  let reveal = null;
+
+  function beginReveal(ok) {
+    panel.classList.remove('revealing', 'jolt');
+    if (!hasPanel || !panel.querySelectorAll || REDUCED) { sound.play(ok ? 'stamp' : 'stampMiss'); return; }
+    const lines = [...panel.querySelectorAll('.tally li')];
+    const counts = lines.map(li => [...li.querySelectorAll('.count')]);
+    for (const c of counts.flat()) c.textContent = (0).toFixed(Number(c.dataset.dp));
+    panel.classList.add('revealing');
+    reveal = { start: null, ok, lines, counts, shown: 0, marked: 0, stamped: false, stamp: panel.querySelector('.stamp') };
+  }
+
+  function landStamp() {
+    reveal.stamped = true;
+    reveal.stamp?.classList.add('in');
+    panel.classList.add('jolt');
+    sound.play(reveal.ok ? 'stamp' : 'stampMiss');
+  }
+
+  function tickReveal(now) {
+    if (!reveal) return;
+    reveal.start ??= now;
+    const t = now - reveal.start;
+    const { lines, counts } = reveal;
+    const lineAt = i => REVEAL.first + i * REVEAL.gap;
+    while (reveal.shown < lines.length && t >= lineAt(reveal.shown)) {
+      lines[reveal.shown].classList.add('in');
+      sound.play('print');
+      reveal.shown++;
+    }
+    for (let i = 0; i < reveal.shown; i++) {
+      const p = clamp((t - lineAt(i)) / REVEAL.count, 0, 1);
+      const eased = 1 - (1 - p) ** 3;
+      for (const c of counts[i]) c.textContent = (Number(c.dataset.to) * eased).toFixed(Number(c.dataset.dp));
+    }
+    while (reveal.marked < reveal.shown && t >= lineAt(reveal.marked) + REVEAL.count) {
+      sound.play(lines[reveal.marked].classList.contains('ok') ? 'good' : 'bad');
+      reveal.marked++;
+    }
+    const stampAt = lineAt(lines.length - 1) + REVEAL.count + REVEAL.stampAfter;
+    if (!reveal.stamped && t >= stampAt) landStamp();
+    if (t >= stampAt + REVEAL.settle) finishReveal();
+  }
+
+  function finishReveal() {
+    if (!reveal) return;
+    for (const li of reveal.lines) li.classList.add('in');
+    for (const c of reveal.counts.flat()) c.textContent = c.dataset.to;
+    if (!reveal.stamped) landStamp();
+    panel.classList.remove('revealing');
+    reveal = null;
+  }
+
+  // ---------- Freeze frames ----------
+  // The first time a lesson's moment happens (MOMENTS in the lesson file), the rush pauses:
+  // the shop dims around a spotlight, and a card explains it in shop words and software
+  // terms. Tap, Space, or Enter carries on. Each moment shows once per visit. The
+  // simulation just pauses, so results are unchanged.
+  const MOMENTS = hasPanel ? (lesson.MOMENTS || []) : [];
+  const seenMoments = new Set();
+  const momentCard = byId('moment');
+  const spot = byId('spot');
+  const sceneEl = byId('scene');
+  let moment = null;
+
+  // Where a ticket on the rail settles: its slot. Tickets are drawn 28 tall from RAIL.y.
+  const slotSpot = i => ({ x: RAIL.x0 + Math.min(i, RAIL.slots - 1) * RAIL.step, y: RAIL.y + 14 });
+  // A goal under pressure: point at the end of the line.
+  const railSpot = () => slotSpot(Math.max(0, state.run.rail.length - 1));
+  // A ticket, wherever it's drawn right now (it slides from the printer to its slot).
+  const ticketSpot = t => () => ({ x: t.x ?? RAIL.x0, y: (t.y ?? RAIL.y) + 14 });
+
+  function trigger(on, info = {}) {
+    if (moment || state.phase !== 'run' || !MOMENTS.length) return;
+    const lv = LEVELS[state.level];
+    const m = MOMENTS.find(x => x.on === on && !seenMoments.has(x.id)
+      && (x.level === undefined || x.level === lv.id)
+      && (x.why === undefined || x.why === info.why)
+      && (x.goal === undefined || x.goal === info.goal));
+    if (m) freeze(m, info);
+  }
+
+  function freeze(m, info) {
+    seenMoments.add(m.id);
+    moment = { m };
+    state.playing = false;
+    if (m.xray && !state.xray) setXray(true);
+    const ctx = { run: state.run, d: state.designs[state.level], ...info };
+    const track = info.track || (() => info.at || { x: W / 2, y: H / 2 });
+    moment.track = track;
+    const w = sceneEl.clientWidth || W;
+    const h = sceneEl.clientHeight || H;
+    const at = info.at || track();
+    const sx = (at.x / W) * w;
+    const sy = (at.y / H) * h;
+    placeSpot();
+    spot.hidden = false;
+    momentCard.innerHTML = `
+      <p class="moment-title"><span aria-hidden="true">⏸</span> ${m.title}</p>
+      <p class="moment-text">${m.text(ctx)}</p>
+      <p class="moment-soft"><span class="slo">IN SOFTWARE</span>${m.soft}</p>
+      <button type="button" class="moment-go">Got it <span class="key" aria-hidden="true">Space</span></button>`;
+    // On wide screens the card floats beside the spotlight; on phones it sits under the shop.
+    const below = sy < h / 2;
+    momentCard.dataset.side = below ? 'below' : 'above';
+    momentCard.style.setProperty('--x', `${clamp(sx, 180, Math.max(180, w - 180)) + (sceneEl.offsetLeft || 0)}px`);
+    momentCard.style.setProperty('--y', `${(below ? sy + 52 : sy - 52) + (sceneEl.offsetTop || 0)}px`);
+    momentCard.hidden = false;
+    sound.play('moment');
+    renderPhase();
+    momentCard.querySelector?.('.moment-go')?.focus({ preventScroll: true });
+  }
+
+  // Keep the spotlight on its target, in CSS pixels of the shop window, every frame.
+  function placeSpot() {
+    if (!moment) return;
+    const w = sceneEl.clientWidth || W;
+    const h = sceneEl.clientHeight || H;
+    const at = moment.track();
+    spot.style.setProperty('--x', `${((at.x / W) * w).toFixed(1)}px`);
+    spot.style.setProperty('--y', `${((at.y / H) * h).toFixed(1)}px`);
+    spot.style.setProperty('--r', `${Math.max(24, w * 0.055).toFixed(1)}px`);
+  }
+
+  function clearMoment() {
+    moment = null;
+    spot.hidden = true;
+    momentCard.hidden = true;
+  }
+
+  function resume() {
+    if (!moment) return;
+    clearMoment();
+    if (state.phase === 'run') state.playing = true;
+    sound.play('tick');
+    renderPhase();
+  }
+  momentCard.addEventListener('click', resume);
+  spot.addEventListener('click', resume);
+
+  // ---------- Live goal meters ----------
+  // While the rush runs, each goal shows a meter and ON TRACK / AT RISK / MISSED.
+  // The numbers come from live-goals.mjs; the debrief stays the final word.
+  const goalStrip = byId('goal-strip');
+  let live = null;
+
+  function liveRowHTML(g) {
+    const first = liveGoal(g.live, state.run);
+    return `<li class="live-goal" data-status="ok">
+        <div class="live-top"><span class="goal-text"><span class="slo">SLO</span>${g.label}</span><span class="badge live-badge ok">${STATUS_WORDS.ok}</span></div>
+        <div class="meter"><i class="meter-fill"></i>${first.mark === null ? '' : `<b class="meter-limit" style="left:${first.mark * 100}%"></b>`}</div>
+        <span class="live-val">${first.text}</span>
+      </li>`;
+  }
+
+  function startLive() {
+    const lv = LEVELS[state.level];
+    goalStrip.innerHTML = lv.goals.map(g =>
+      `<span class="strip-goal" data-status="ok"><span class="strip-label">${shortLabel(g.live)}</span><span class="badge live-badge ok">${STATUS_WORDS.ok}</span></span>`).join('');
+    goalStrip.hidden = false;
+    const all = (root, sel) => (root.querySelectorAll ? [...root.querySelectorAll(sel)] : []);
+    live = { statuses: lv.goals.map(() => 'ok'), rows: all(panel, '.live-goal'), chips: all(goalStrip, '.strip-goal') };
+    updateLive();
+  }
+
+  function stopLive() {
+    clearMoment();
+    live = null;
+    goalStrip.hidden = true;
+  }
+
+  function updateLive() {
+    if (!live || state.phase !== 'run') return;
+    LEVELS[state.level].goals.forEach((g, i) => {
+      const r = liveGoal(g.live, state.run);
+      const row = live.rows[i];
+      const chip = live.chips[i];
+      if (row) {
+        row.querySelector('.meter-fill').style.width = `${(r.fill * 100).toFixed(1)}%`;
+        row.querySelector('.live-val').textContent = r.text;
+      }
+      if (r.status === live.statuses[i]) return;
+      live.statuses[i] = r.status;
+      for (const el of [row, chip]) {
+        if (!el) continue;
+        el.dataset.status = r.status;
+        const badgeEl = el.querySelector('.live-badge');
+        badgeEl.textContent = STATUS_WORDS[r.status];
+        badgeEl.className = `badge live-badge ${r.status}`;
+        // Restart the pop animation: remove the class, force a layout, add it back.
+        el.classList.remove('flip'); void el.offsetWidth; el.classList.add('flip');
+      }
+      if (r.status === 'risk') { sound.play('warn'); trigger('goalRisk', { goal: i, at: railSpot() }); }
+      if (r.status === 'missed') { sound.play('bad'); trigger('goalMissed', { goal: i, at: railSpot() }); }
+    });
   }
 
   function renderRunning() {
@@ -1022,7 +1259,7 @@ ${batchFacts(s)}
     panel.innerHTML = `
       <div class="ticket-head"><span>LEVEL ${lv.id} · RUSH</span><span>DESIGN LOCKED</span></div>
       <h2>The rush is on</h2>
-      ${goalsHTML(lv, null)}
+      <ul class="goals live">${lv.goals.map(liveRowHTML).join('')}</ul>
       <p class="quiet">Your design is locked in, just like a real system once traffic arrives. Press the <strong>X-ray monitor</strong> on the shop to see the system behind it.</p>
       <p class="note">The caption under the shop tells you what each event means in software terms.</p>`;
   }
@@ -1033,6 +1270,7 @@ ${batchFacts(s)}
   let shownPhase = null;
 
   function renderPanel() {
+    if (reveal && state.phase !== 'debrief') { reveal = null; panel.classList.remove('revealing', 'jolt'); }
     if (state.phase === 'design') renderDesign();
     else if (state.phase === 'run') renderRunning();
     else renderDebrief();
@@ -1042,6 +1280,7 @@ ${batchFacts(s)}
   }
 
   panel.addEventListener('click', ev => {
+    if (reveal) { ev.preventDefault?.(); finishReveal(); return; } // Tap the receipt to skip the reveal.
     const b = ev.target.closest('button');
     if (!b || b.disabled) return;
     const d = state.designs[state.level];
@@ -1079,6 +1318,7 @@ ${batchFacts(s)}
   });
 
   function designChanged() {
+    sound.play('tick');
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
     if (lv.capacityUnlocked && d.rail && !Number.isFinite(d.capacity)) d.capacity = 30;
@@ -1093,6 +1333,7 @@ ${batchFacts(s)}
     state.phase = 'design'; state.playing = false;
     state.run = idleRun();
     state.summary = null;
+    stopLive();
     setXray(true);
     state.message = '';
     hud.caption.innerHTML = 'Design your shop below. The X-ray shows the system you are building.';
@@ -1110,6 +1351,7 @@ ${batchFacts(s)}
     lastCaption = '';
     hud.caption.innerHTML = 'The doors are open. Customers are walking in.';
     renderPanel(); renderChart();
+    startLive();
   }
 
   function onFinished(run) {
@@ -1121,10 +1363,12 @@ ${batchFacts(s)}
       state.passed[state.level] = true;
       state.unlocked = Math.max(state.unlocked, Math.min(state.level + 1, LEVELS.length - 1));
     }
+    stopLive();
     state.phase = 'debrief';
     hud.caption.innerHTML = `${clock(run.lastEventT)}  Rush over. ${run.served} served, ${run.rejected} turned away.`;
     canvas.setAttribute('aria-label', `Coffee shop after the rush: ${run.served} served, ${run.rejected} turned away.`);
     renderLevels(); renderPanel(); renderChart();
+    beginReveal(ok);
     if (onFinish) onFinish(state.summary);
   }
 
@@ -1139,9 +1383,17 @@ ${batchFacts(s)}
   }
   xrayBtn.addEventListener('click', () => { state.xrayUsed = true; setXray(!state.xray); });
   document.addEventListener('keydown', ev => {
+    if (moment && (ev.key === ' ' || ev.key === 'Enter')) { ev.preventDefault?.(); resume(); return; }
     if ((ev.key === 'x' || ev.key === 'X') && !ev.target.closest('input, textarea')) { state.xrayUsed = true; setXray(!state.xray); }
   });
-  byId('pause').addEventListener('click', () => { state.playing = !state.playing; renderPhase(); });
+  const muteBtn = byId('mute');
+  function renderMute() {
+    muteBtn.setAttribute('aria-pressed', String(sound.muted));
+    muteBtn.textContent = sound.muted ? 'Sound off' : 'Sound on';
+  }
+  muteBtn.addEventListener('click', () => { sound.setMuted(!sound.muted); renderMute(); sound.play('tick'); });
+  renderMute();
+  byId('pause').addEventListener('click', () => { if (moment) { resume(); return; } state.playing = !state.playing; renderPhase(); });
   document.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener('change', () => { state.speed = Number(r.value); }));
 
   const hud = {
@@ -1154,6 +1406,7 @@ ${batchFacts(s)}
     const run = state.run;
     if (now - lastHud > 90) {
       lastHud = now;
+      updateLive();
       hud.clock.textContent = clock(run.t);
       hud.served.textContent = run.served;
       hud.rejected.textContent = run.rejected;
@@ -1182,8 +1435,11 @@ ${batchFacts(s)}
       run.t += dt * 60 * state.speed; // Keeps going after the last drink, while app customers arrive to collect.
       sample(run);
       processEvents(run, onEvent);
+      if (run.rail.length) trigger('queued', { ticket: run.rail[0], at: slotSpot(0), track: ticketSpot(run.rail[0]) });
     }
-    updateVisuals(run, state.phase === 'run' && !state.playing ? 0 : dt);
+    updateVisuals(run, state.phase === 'run' && !state.playing && !moment ? 0 : dt);
+    placeSpot();
+    tickReveal(now);
     if (state.phase === 'run' && !run.finished && run.events.length === 0 && run.customers.every(p => p.state === 'gone')) {
       run.finished = true; onFinished(run);
     }

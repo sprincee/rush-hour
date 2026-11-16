@@ -31,7 +31,7 @@ function fakePage({ only } = {}) {
   const ctx = fakeContext();
   const elements = {};
   const make = id => ({
-    id, innerHTML: '', textContent: '', hidden: false, dataset: {}, listeners: {},
+    id, innerHTML: '', textContent: '', hidden: false, dataset: {}, listeners: {}, style: { setProperty() {} },
     classList: { toggle() {}, add() {}, remove() {} },
     setAttribute() {}, querySelector() { return null; }, closest() { return null; },
     addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
@@ -39,6 +39,7 @@ function fakePage({ only } = {}) {
     getContext() { return ctx; },
   });
   let frame = null;
+  let now = 1000; // Fake animation time, in ms. Keeps running across runFrames calls.
   globalThis.document = {
     getElementById: id => (only && !only.includes(id) ? null : (elements[id] ||= make(id))),
     // Canvases for the drawing layers; anything else is a stand-in element, as in a browser.
@@ -66,15 +67,24 @@ function fakePage({ only } = {}) {
       for (let i = 0; i < minutes; i++) fire('panel', 'click', button({ act: 'wait-plus' }));
     },
     toggleXray: () => elements.xrayBtn.listeners.click.forEach(fn => fn()),
+    // Freeze-frame cards seen, in order. runFrames taps "Got it" like a player would.
+    moments: [],
     runFrames(maxFrames, until) {
-      let now = 1000;
       for (let i = 0; i < maxFrames; i++) {
         now += 50;
         frame(now);
         if (until()) return i;
+        const card = elements.moment;
+        if (card && !card.hidden && card.innerHTML && card.innerHTML !== this.lastMoment) {
+          this.moments.push(card.innerHTML);
+          this.lastMoment = card.innerHTML;
+          card.listeners.click.forEach(fn => fn({ target: card }));
+        }
       }
       return -1;
     },
+    // Frames with no tapping, to hold a freeze-frame card open.
+    holdFrames(n) { for (let i = 0; i < n; i++) { now += 50; frame(now); } },
   };
 }
 
@@ -128,6 +138,97 @@ test('a folded-away level ticket reopens for the debrief and the next brief', ()
   assert.equal(holder.open, false, 'the rush should not reopen it');
   page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
   assert.equal(holder.open, true, 'the debrief reopens it');
+});
+
+test('the debrief receipt prints line by line, counts up, then stamps', () => {
+  const page = fakePage();
+  const classes = () => { const set = new Set(); return { set, add: (...c) => c.forEach(x => set.add(x)), remove: (...c) => c.forEach(x => set.delete(x)), toggle() {}, contains: c => set.has(c) }; };
+  const count = () => ({ textContent: '', dataset: { to: '54.8', dp: '1' } });
+  const lines = [0, 1].map(() => { const c = count(); return { classList: classes(), count: c, querySelectorAll: () => [c] }; });
+  const stamp = { classList: classes() };
+  const panel = document.getElementById('panel');
+  panel.classList = classes();
+  panel.querySelectorAll = sel => (sel === '.tally li' ? lines : []);
+  panel.querySelector = sel => (sel === '.stamp' ? stamp : null);
+  startGame({ config, lesson: lesson2 });
+  page.clickLevel(0);
+  page.act('run');
+  page.runFrames(5000, () => panel.classList.contains('revealing'));
+  assert.equal(lines[0].count.textContent, '0.0', 'numbers start from zero');
+  page.runFrames(8, () => false); // About 400 ms in: the first line has printed.
+  assert.ok(lines[0].classList.contains('in') && !stamp.classList.contains('in'), 'lines print before the stamp');
+  page.runFrames(60, () => !panel.classList.contains('revealing'));
+  assert.ok(stamp.classList.contains('in') && panel.classList.contains('jolt'), 'the stamp lands');
+  assert.equal(lines[1].count.textContent, '54.8', 'numbers end on the real value');
+});
+
+test('live goal meters fill, then flip to AT RISK and MISSED during the rush', () => {
+  const page = fakePage();
+  const fakeEl = () => ({ style: {}, textContent: '', className: '', dataset: {}, offsetWidth: 0, classList: { add() {}, remove() {}, toggle() {} } });
+  const rows = [0, 1].map(() => {
+    const parts = { '.meter-fill': fakeEl(), '.live-val': fakeEl(), '.live-badge': fakeEl() };
+    return { ...fakeEl(), parts, querySelector: sel => parts[sel] };
+  });
+  const panel = document.getElementById('panel');
+  panel.querySelectorAll = sel => (sel === '.live-goal' ? rows : []);
+  startGame({ config, lesson: lesson2 });
+  page.clickLevel(1); // 2.2, starting design: the 40-minute goal breaks mid-rush.
+  page.act('run');
+  const seen = new Set();
+  page.runFrames(5000, () => {
+    seen.add(rows[1].dataset.status);
+    return page.elements.panel.innerHTML.includes('· DEBRIEF');
+  });
+  assert.ok(seen.has('risk') && seen.has('missed'), `statuses seen: ${[...seen]}`);
+  assert.equal(rows[1].parts['.live-badge'].textContent, 'MISSED');
+  assert.match(rows[0].parts['.live-val'].textContent, /\/ 50 served/);
+  assert.ok(document.getElementById('goal-strip').hidden, 'the strip hides after the rush');
+});
+
+test('lesson 2 freeze frames: each shows once, pauses the rush, and can flip the X-ray', () => {
+  const page = fakePage();
+  const game = startGame({ config, lesson: lesson2 });
+  const titles = () => page.moments.map(html => html.match(/<\/span> ([^<]+)<\/p>/)[1]);
+
+  page.clickLevel(0); // 2.1: no rail, so someone walks out.
+  page.act('run');
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.deepEqual(titles(), ['Nowhere to wait']);
+
+  page.clickLevel(0); // Replaying in the same visit doesn't pause again.
+  page.act('run');
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.equal(page.moments.length, 1);
+
+  // 2.2: the first ticket on the rail pauses the rush and flips on the X-ray.
+  page.clickLevel(1);
+  page.act('run');
+  game.setXray(false);
+  page.runFrames(5000, () => !page.elements.moment.hidden && page.elements.moment.innerHTML.includes('First ticket'));
+  const clock = page.elements.clock.textContent;
+  page.moments.push(page.elements.moment.innerHTML); // runFrames stopped before tapping this one.
+  page.lastMoment = page.elements.moment.innerHTML;
+  page.holdFrames(40); // Two seconds with the card open.
+  assert.equal(game.xray, true, 'the X-ray flipped on for the queue');
+  assert.equal(page.elements.clock.textContent, clock, 'the shop clock is paused');
+  page.elements.moment.listeners.click.forEach(fn => fn({})); // Got it.
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.deepEqual(titles(), ['Nowhere to wait', 'First ticket on the rail', 'The line is getting long']);
+});
+
+test('tapping the receipt skips straight to the stamp', () => {
+  const page = fakePage();
+  const set = new Set();
+  const panel = document.getElementById('panel');
+  panel.classList = { add: (...c) => c.forEach(x => set.add(x)), remove: (...c) => c.forEach(x => set.delete(x)), toggle() {}, contains: c => set.has(c) };
+  panel.querySelectorAll = () => [];
+  panel.querySelector = () => null;
+  startGame({ config, lesson: lesson2 });
+  page.clickLevel(0);
+  page.act('run');
+  page.runFrames(5000, () => set.has('revealing'));
+  page.act('anything'); // Any tap on the ticket.
+  assert.ok(!set.has('revealing') && set.has('jolt'));
 });
 
 test('the last level links to the next lesson', () => {

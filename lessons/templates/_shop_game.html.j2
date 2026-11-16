@@ -9,6 +9,7 @@
   <div class="play">
     <div class="stage">
       {% include "_shop_stage.html.j2" %}
+      <div class="moment" id="moment" role="status" hidden></div>
       <div class="key" id="key" aria-label="X-ray key">
         <span><i style="background:#f2b233"></i>Request arriving at the API</span>
         <span><i style="background:#5aa2f0"></i>Waiting in the queue</span>
@@ -20,6 +21,7 @@
       <div class="controls">
         <div class="phase" id="phase" aria-label="Level progress"></div>
         <div class="group">
+          <button class="ghost" id="mute" type="button" aria-pressed="false">Sound on</button>
           <button class="ghost" id="pause" type="button" hidden>Pause</button>
           <div class="seg" role="radiogroup" aria-label="Speed">
             <input type="radio" name="speed" id="speed-1" value="1"><label for="speed-1">1×</label>
@@ -34,6 +36,7 @@
         <div><dt id="lb-wait">Longest wait <em>· latency</em></dt><dd id="st-wait">–</dd></div>
         <div><dt id="lb-queue">On the rail <em>· queue depth</em></dt><dd id="st-queue">0</dd></div>
       </dl>
+      <div class="goal-strip" id="goal-strip" aria-hidden="true" hidden></div>
       <p class="caption" id="caption" aria-live="polite"></p>
     </div>
 

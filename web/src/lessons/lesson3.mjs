@@ -11,11 +11,13 @@ const APP_GOAL = 30;
 
 const goals = [
   {
+    live: { kind: 'wait', limit: WALKIN_GOAL, channel: 'walkin' },
     label: `Walk-ins wait ${WALKIN_GOAL} minutes or less`,
     got: s => `longest ${s.walkin.longestWaitMin.toFixed(1)} min`,
     ok: s => s.walkin.longestWaitMin <= WALKIN_GOAL,
   },
   {
+    live: { kind: 'wait', limit: APP_GOAL, channel: 'mobile' },
     label: `App orders ready within ${APP_GOAL} minutes`,
     got: s => `longest ${s.mobile.longestWaitMin.toFixed(1)} min`,
     ok: s => s.mobile.longestWaitMin <= APP_GOAL,
