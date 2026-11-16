@@ -56,6 +56,7 @@ function fakePage({ only } = {}) {
     elements,
     clickLevel: i => fire('levels', 'click', button({ level: String(i) })),
     act: name => fire('panel', 'click', button({ act: name })),
+    guess: i => fire('panel', 'click', button({ act: 'guess', guess: String(i) })),
     choosePolicy: value => fire('panel', 'change', { name: 'policy', value }),
     // Steppers: step all the way down, then up to the value.
     setEvery: n => {
@@ -295,4 +296,40 @@ test('every lesson 3 level plays to a debrief with each rule it offers', () => {
       assert.ok(html.includes('walk-in') && html.includes('app'), 'debrief reports both channels');
     }
   }
+});
+
+test('your call and stars: a right guess and a cheap win earn all three, and the level rail shows them', () => {
+  const page = fakePage();
+  startGame({ config, lesson: lesson2 });
+  const debrief = () => page.elements.panel.innerHTML;
+  const earned = html => (html.match(/class="stars debrief-stars"[\s\S]*?<\/ul>/)[0].match(/<li class="on/g) || []).length;
+
+  // 2.1 from the start (no rail): most customers walk out. Call it right.
+  page.clickLevel(0);
+  assert.ok(page.elements.panel.innerHTML.includes('YOUR CALL'), 'the brief asks for a call');
+  page.guess(2); // More than 20.
+  page.act('run');
+  page.runFrames(5000, () => debrief().includes('· DEBRIEF'));
+  assert.ok(debrief().includes('Called it.'), 'the debrief compares the call');
+  assert.equal(earned(debrief()), 1, 'only the call star: the goals were missed');
+  assert.ok(debrief().includes('NEW'), 'a first star is marked new');
+
+  // Then the cheapest winning design: one barista and the rail, $20. Guess wrong this time.
+  page.act('change');
+  page.act('minus');
+  page.act('rail');
+  page.guess(1); // 1 to 20, but nobody walks out.
+  page.act('run');
+  page.runFrames(5000, () => debrief().includes('· DEBRIEF'));
+  assert.ok(debrief().includes('Not this time.'));
+  assert.equal(earned(debrief()), 2, 'goals and the $20 stretch');
+  assert.match(page.elements.levels.innerHTML, /aria-label="3 of 3 stars"/, 'stars kept across runs show on the level rail');
+  assert.ok(!page.elements.levels.innerHTML.match(/data-level="1"[^>]*disabled/), 'level 2.2 unlocked');
+
+  // No call, no call line; and the call is cleared after each rush.
+  page.act('change');
+  assert.ok(!/data-act="guess"[^>]*aria-pressed="true"/.test(page.elements.panel.innerHTML), 'the call starts fresh');
+  page.act('run');
+  page.runFrames(5000, () => debrief().includes('· DEBRIEF'));
+  assert.ok(!debrief().includes('call-result'));
 });

@@ -2,7 +2,7 @@
 // From the real shop: one latte takes 2 minutes, two batched take 2.5. Cappuccinos
 // never share a pitcher, and drip needs no milk. A barista grabs a second waiting
 // latte from anywhere in the queue, even past a cappuccino, and makes both.
-import { COST, designCost, evaluate } from './common.mjs';
+import { COST, designCost, evaluate, spendAtMost, solveIn, minutes } from './common.mjs';
 
 export { COST, designCost, evaluate };
 
@@ -82,3 +82,40 @@ LEVELS[2].explain = (d, s) => {
   if (d.policy === 'walkin') return `Batching made the bar faster, and walk-ins waited at most ${w} minutes. But walk-ins never stopped coming, so app orders only moved when the walk-in rail was empty, and some waited <strong>${m} minutes</strong>. That's lesson 3's starvation, still here. Batching needs a fair rule to go with it.`;
   return `Batching helped, but the goals were still missed: walk-ins ${w} minutes, app orders ${m} minutes.`;
 };
+
+// Your call: one question before each rush, and a stretch star. See starsFor in common.mjs.
+LEVELS[0].predict = {
+  q: () => 'How many pitchers of milk will your baristas steam?',
+  options: [
+    { label: 'Fewer than 15', test: s => s.steams < 15 },
+    { label: '15 to 20', test: s => s.steams <= 20 },
+    { label: 'More than 20', test: () => true },
+  ],
+  actual: s => `${s.steams} pitchers`,
+};
+LEVELS[0].stretch = solveIn(3);
+LEVELS[1].predict = {
+  q: d => (d.batchWait
+    ? `Baristas hold a lone latte for up to ${d.batchWait / 60} min. How many pitchers will they steam?`
+    : "Baristas don't wait for a second latte. How many pitchers will they steam?"),
+  options: [
+    { label: '9 or fewer', test: s => s.steams <= 9 },
+    { label: '10 to 12', test: s => s.steams <= 12 },
+    { label: '13 or more', test: () => true },
+  ],
+  actual: s => `${s.steams} pitchers`,
+};
+LEVELS[1].stretch = { label: 'Nobody waits more than 6½ minutes', ok: s => s.longestWaitMin <= 6.5 };
+const walkOk = s => s.walkin.longestWaitMin <= 15;
+const appOk = s => s.mobile.longestWaitMin <= 10;
+LEVELS[2].predict = {
+  q: () => 'Which goal will you miss?',
+  options: [
+    { label: 'Neither', test: s => walkOk(s) && appOk(s) },
+    { label: 'Just walk-ins', test: s => !walkOk(s) && appOk(s) },
+    { label: 'Just app orders', test: s => walkOk(s) && !appOk(s) },
+    { label: 'Both', test: () => true },
+  ],
+  actual: s => `walk-ins ${s.walkin.longestWaitMin.toFixed(1)} min, app ${s.mobile.longestWaitMin.toFixed(1)} min`,
+};
+LEVELS[2].stretch = solveIn(3);

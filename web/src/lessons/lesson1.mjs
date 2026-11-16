@@ -2,7 +2,7 @@
 // Sync: the cashier takes your order, then waits at the bar until your drink is
 // made before taking the next customer. Async: the cashier prints a ticket, says
 // "we'll call your name", and takes the next order right away.
-import { COST, designCost, evaluate } from './common.mjs';
+import { COST, designCost, evaluate, spendAtMost, solveIn, minutes } from './common.mjs';
 
 export { COST, designCost, evaluate };
 
@@ -61,3 +61,25 @@ LEVELS[1].explain = (d, s) => {
   if (s.ok) return `Everyone got a ticket within <strong>${answer(s)} minutes</strong> and a drink within <strong>${wait(s)} minutes</strong>. Async fixed the response time; enough baristas fixed the processing time.`;
   return `Every customer got a ticket within ${answer(s)} minutes, so the response time is solved. But the longest wait for a drink was <strong>${wait(s)} minutes</strong>: async doesn't make the work itself faster. That takes more workers.`;
 };
+
+// Your call: one question before each rush, and a stretch star. See starsFor in common.mjs.
+LEVELS[0].predict = {
+  q: d => `How many of your ${d.baristas} barista${d.baristas > 1 ? 's' : ''} will be making drinks at the same time?`,
+  options: [
+    { label: 'Just one', test: s => s.maxBusy <= 1 },
+    { label: 'Some of them', test: (s, d) => s.maxBusy < d.baristas },
+    { label: 'All of them', test: () => true },
+  ],
+  actual: s => `at most ${s.maxBusy} at once`,
+};
+LEVELS[0].stretch = spendAtMost(40);
+LEVELS[1].predict = {
+  q: () => 'How long will the slowest customer wait at the register for an answer?',
+  options: [
+    { label: 'Seconds', test: s => s.longestAnswerMin < 1 },
+    { label: 'A few minutes', test: s => s.longestAnswerMin <= 10 },
+    { label: 'More than 10 minutes', test: () => true },
+  ],
+  actual: s => `${minutes(s.longestAnswerMin)} for an answer`,
+};
+LEVELS[1].stretch = solveIn(3);

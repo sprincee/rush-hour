@@ -190,13 +190,23 @@ All fonts are free and self-hosted from `web/static/fonts/` (no Google Fonts req
 - The same badges sit in a strip under the shop stats on phones, and on desktop when the ticket is folded away.
 - Each lesson goal has a `live` description (`web/src/game/live-goals.mjs` lists the kinds).
 
+### Your call and stars (built 2026-11-16)
+- **Your call:** above the Run button, one question about the rush with 2 to 4 option pills ("How many of the 50 customers will walk out?"). One tap picks, a second tap takes it back. It's optional and clears after every rush, so each run is a fresh guess. The debrief says "You said X. It was Y: the number. Called it." in a milk-colored note.
+- **Stars:** three per level. ★ Meet the goals, ★ a stretch, ★ Called it. A stretch is a real target where the level has room ("for $40 or less", "turn away 20 or fewer"), or "in 3 rushes or fewer" where only one design passes. The stretch only counts on a run that meets the goals. Stars are kept for the visit, and remembering them waits for accounts.
+- In the brief, the stars are a quiet checklist. In the debrief they're chips that pop in one by one after the stamp, each with a rising chime. A first-time star gets a `NEW` tag and a glow. The level tickets show ★★☆.
+- Lesson data: `predict` (`q`, `options` with tests, `actual`) and `stretch` on each level; `starsFor` in `web/src/lessons/common.mjs`. `web/test/stars.test.mjs` checks every stretch is earnable and every call has an answer for every design.
+
+### Tap-to-define
+- The first mention of a software term in a ticket, freeze-frame card or stats label gets a dotted underline. Tapping it opens a small dark note: the term in ticket font, then one or two plain sentences with the shop version. Escape, scrolling, or a tap elsewhere closes it.
+- Terms and definitions are data in `web/src/lessons/glossary.mjs`. Lesson concepts themselves (queue, batching) aren't in it, since the lesson teaches them.
+
 ### Live panel frame (Grafana or snapshot)
 - A dark frame labeled "BACK OFFICE MONITOR", using the X-ray tokens, with a live dot that pulses `--xr-ok` once every 2s.
 - When the server is waking or the panel is showing a recorded run, the label says `RECORDED RUN · 2026-11-11` in `--xr-warn`. Never present a recording as live.
 
 ### Debrief
 - The payoff moment of every level (built 2026-11-16). The receipt prints one line per goal plus the budget, with a printer chirp. Each number counts up from zero, and each line gets a ✓ or ✕ that pops in. Then a rubber stamp lands (**GOALS MET** in `--ok`, **NOT YET** in `--bad`), jolting the ticket.
-- After the stamp come "What happened" (the lesson, in the player's own numbers) and the buttons. The full receipt numbers and the concept card fold away under "Your receipt" and "In software terms". The SLO note shows only on the first debrief of a visit.
+- After the stamp come the stars, then your call's result, "What happened" (the lesson, in the player's own numbers), and the buttons. A level that just unlocked prints onto the level rail once the receipt is done. The full receipt numbers and the concept card fold away under "Your receipt" and "In software terms". The SLO note shows only on the first debrief of a visit.
 - Tapping the ticket skips straight to the stamp. With reduced motion, everything shows at once.
 
 ### Layout: mobile first
@@ -223,13 +233,14 @@ Rules every page follows:
 - Everyday UI is quick and mechanical, like a ticket printer: 150–250ms with `cubic-bezier(.2,.7,.2,1)`, with no overshoot.
 - **Payoff moments may overshoot** (the owner's call, 2026-11-16): stamps landing, marks popping, scores and badges. They're the game's reward, so they get a little weight and bounce. Keep them short (under 400ms each), and never use overshoot on buttons, panels, or navigation.
 - Motion explains state (a ticket moves into the line, a barista picks it up, a goal is met). It is never decoration.
-- Effects over the shop (steam puffs, pop-ups over customers, zooms) go on a separate layer above the canvas, so the frozen canvas drawing is never edited.
+- Effects over the shop go on a separate layer above the canvas (`<canvas class="fx">`, drawn by `web/src/game/effects.mjs`), so the frozen canvas drawing is never edited. Built 2026-11-16: a green ✓ that pops over each customer collecting a drink, a red ring where someone is turned away, a steam puff at the wand and a flash on the ORDER UP sign for each drink, and "×2" for a batch. They fade out under the X-ray, which has its own pops.
+- **Every input reacts** (2026-11-16): the value you changed bumps (a stepper number, a switch, the chosen option), the design cost rolls to its new number while the budget bar slides, and going over budget shakes the bar. The Run button presses in. The served and turned-away counters bump (red for turned away). Flipping the X-ray sweeps one scanline down the window. These bumps are under 250ms and sit on the changed value, never on hover.
 - With `prefers-reduced-motion: reduce`, the game still runs, but UI transitions are instant, payoff animations are skipped, and the live dot stops pulsing.
 
 ### Sound
-- `web/src/game/sound.mjs` makes every sound with Web Audio, so there are no audio files. They're placeholders for testing; recorded sounds can replace them later under the same names (`print`, `good`, `bad`, `stamp`, `stampMiss`, `tick`).
+- `web/src/game/sound.mjs` makes every sound with Web Audio, so there are no audio files. They're placeholders for testing; recorded sounds can replace them later under the same names: `print`, `good`, `bad`, `stamp`, `stampMiss`, `tick`, `warn`, `moment`, and since 2026-11-16 `orderUp` (a counter bell per drink), `batchUp`, `turnAway`, `ticket`, `run` (the register "ka-ching"), `xray` / `xrayOff`, `unlock`, `star` / `starMiss`. Sounds that can pile up during a rush are spaced out.
 - Sound starts on the player's first click or key press (browsers require that). The **Sound on / off** button is in the shop controls and is remembered per browser.
-- Sounds mark state changes, like motion does: a ticket printing, a goal met or missed, the stamp. No music or looping background for now. The homepage demo is always silent.
+- Sounds mark state changes, like motion does: a ticket printing, a goal met or missed, the stamp. No music. During a rush two quiet loops play under everything: steam hiss that grows with busy baristas, and a crowd murmur that swells as the shop fills. They stop on pause, on a freeze frame, and when the tab is hidden. The homepage demo is always silent.
 
 ## 8. Voice in the UI
 

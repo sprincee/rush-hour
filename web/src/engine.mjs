@@ -70,6 +70,7 @@ export function createRun(design, { config, rush = 'lesson-2', look, jitter } = 
     // holding: waiting by the steamer for a second latte (a batch window).
     baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, partner: null, holding: false, holdUntil: 0, reserved: null, startAt: 0, doneAt: 0, busyTime: 0, sinceMobile: 0 })),
     cups: [], pops: [], served: 0, rejected: 0, longestWait: 0, steams: 0, batches: 0,
+    maxBusy: 0, // The most baristas making drinks at the same moment.
     byChannel: { walkin: { served: 0, rejected: 0, longestWait: 0 }, mobile: { served: 0, rejected: 0, longestWait: 0 } },
     series: [[0, 0, 0]], nextSample: SAMPLE_EVERY,
     message: '', finished: false, logicDone: false,
@@ -237,6 +238,7 @@ function startDrink(run, b, ticket, partner, t) {
   b.ticket = ticket; b.partner = partner; b.startAt = t; b.doneAt = t + prep;
   if (run.menu[ticket.item].batchable) run.steams++;
   if (partner) run.batches++;
+  run.maxBusy = Math.max(run.maxBusy, run.baristas.filter(x => x.ticket && !x.holding).length);
   schedule(run, b.doneAt, 'drinkDone', b);
 }
 
@@ -285,6 +287,7 @@ export function summarize(run) {
     longestAnswerMin: longestAnswer / 60,
     steams: run.steams, // Pitchers of milk steamed: one per latte, or one per batch of two.
     batches: run.batches,
+    maxBusy: run.maxBusy,
     walkin: channel(run.byChannel.walkin),
     mobile: channel(run.byChannel.mobile),
   };

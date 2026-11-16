@@ -5,6 +5,9 @@ import { createRun, processEvents, sample, completeRun, summarize, POLICIES } fr
 import { menuById } from '../arrivals.mjs';
 import { createSound } from './sound.mjs';
 import { liveGoal, shortLabel, STATUS_WORDS } from './live-goals.mjs';
+import { createEffects } from './effects.mjs';
+import { setUpDefine } from './define.mjs';
+import { starsFor, starLabels, outcome } from '../lessons/common.mjs';
 
 /**
  * Start the game on a page built from lessons/templates/_shop_game.html.j2.
@@ -21,9 +24,8 @@ export function startGame({ config, lesson, next, onFinish }) {
   // Lesson pages have the level panel; the homepage demo doesn't, and stays silent.
   const hasPanel = Boolean(document.getElementById('panel'));
   const sound = createSound({ enabled: hasPanel });
-
-
-  
+  const fx = createEffects();
+  const define = setUpDefine();
 
   const { LEVELS, LOCKED, COST, designCost } = lesson;
   const menu = menuById(config);
@@ -81,6 +83,11 @@ export function startGame({ config, lesson, next, onFinish }) {
     phase: 'design', speed: 2, playing: false,
     xray: true, xa: 1, xrayUsed: false,
     run: null, summary: null, steam: [], hover: null, cssWidth: 1000,
+    // Stars and predictions, per level, for this visit.
+    stars: LEVELS.map(() => [false, false, false]), guesses: LEVELS.map(() => null),
+    rushes: LEVELS.map(() => 0), shownCost: LEVELS.map(() => null),
+    runGuess: null, runStars: null, newStars: null,
+    navUnlocked: 0, pendingUnlock: null, // The level nav shows a new level once the debrief has printed.
   };
 
   function makeRun(d) {
@@ -105,9 +112,14 @@ export function startGame({ config, lesson, next, onFinish }) {
   }
 
   // ---------- Visual reactions to engine events ----------
+  const burst = (kind, x, y) => { if (!REDUCED) fx.add(kind, x, y); };
+  // How big a customer is drawn at height y: nearer the front, bigger.
+  const sizeAt = y => 0.78 + clamp((y - 312) / 230, 0, 1) * 0.4;
+
   function onEvent(kind, c, extra) {
     const run = state.run;
     const t = run.t;
+    if (kind === 'accepted') sound.play('ticket');
     if (kind === 'accepted' && c.channel === 'mobile') {
       run.pops.push({ text: '202 · app order', x: APP_PRINTER.x, y: 104, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()} in the app. <b>→ The request skipped the register and went straight to the app queue (line:mobile).</b>`;
@@ -119,6 +131,8 @@ export function startGame({ config, lesson, next, onFinish }) {
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()}. <b>→ API replied 202 Accepted${run.design.rail ? ' and added a message to the queue' : ' and handed the job to a free worker'}.</b>`;
     } else if (kind === 'rejected') {
       trigger('rejected', { why: extra, c, track: () => ({ x: c.x ?? REGISTER_SPOT.x, y: (c.y ?? REGISTER_SPOT.y) - 40 }) });
+      sound.play('turnAway');
+      burst('turnaway', c.x ?? REGISTER_SPOT.x, (c.y ?? REGISTER_SPOT.y) - 40);
       c.via = { ...DOOR_LANE };
       const full = extra === 'full';
       run.pops.push({ text: full ? '503 Queue full' : '503 No worker free', x: c.x, y: c.y - 74, color: COLORS.rejected, born: performance.now() });
@@ -127,6 +141,11 @@ export function startGame({ config, lesson, next, onFinish }) {
         : `${clock(t)}  Customer ${c.id} walked out: both baristas were busy. <b>→ 503: no free worker and no queue.</b>`;
     } else if (kind === 'done') {
       c.via = null;
+      const bx = BARISTA_SLOTS[run.design.baristas][extra.i];
+      sound.play(extra.partner ? 'batchUp' : 'orderUp');
+      burst('orderUp', 0, 0);
+      burst('steam', bx - 30, 276);
+      if (extra.partner) burst('batch', bx, 206);
       run.cups.push({ id: c.id, born: performance.now() });
       run.pops.push({ text: '200 OK', x: 852, y: 214, color: COLORS.done, born: performance.now() });
       run.message = extra.partner
@@ -140,6 +159,10 @@ export function startGame({ config, lesson, next, onFinish }) {
   // ---------- Drawing ----------
   const canvas = byId('shop');
   const ctx = canvas.getContext('2d');
+  // The effects layer: its own canvas over the shop (see effects.mjs). Pages without one skip it.
+  const fxCanvas = document.getElementById('fx');
+  const fxCtx = fxCanvas?.getContext ? fxCanvas.getContext('2d') : null;
+  let fxDirty = false;
   let scale = 1, backLayer = null, frontLayer = null, shadeLayer = null;
 
   function rr(c, x, y, w, h, r) {
@@ -640,6 +663,12 @@ export function startGame({ config, lesson, next, onFinish }) {
     run.customers.filter(p => !offstage(run, p)).sort((a, b) => a.y - b.y).forEach(p => drawCustomer(ctx, p, now));
     if (shadeLayer) ctx.drawImage(shadeLayer, 0, 0, W, H);
     if (state.xa > 0.01) drawXray(ctx, run, now, state.xa);
+    if (fxCtx && (fx.count || fxDirty)) {
+      fxCtx.setTransform(scale, 0, 0, scale, 0, 0);
+      fxCtx.clearRect(0, 0, W, H);
+      fx.draw(fxCtx, now, 1 - state.xa); // Effects fade out under the X-ray, which has its own pops.
+      fxDirty = fx.count > 0;
+    }
   }
 
   // ---------- Movement (visual only; the engine never waits for it) ----------
@@ -680,6 +709,7 @@ export function startGame({ config, lesson, next, onFinish }) {
       if (offstage(run, p)) continue;
       if (!moveToward(p, dt, speed)) continue;
       if (p.state === 'pickup') {
+        burst('served', p.x, p.y - 84 * sizeAt(p.y));
         run.cups = run.cups.filter(cup => cup.id !== p.id);
         p.hasCup = true; p.state = 'leaving'; p.via = { ...DOOR_LANE };
       } else if ((p.state === 'leaving' || p.state === 'walkout') && p.y <= DOOR.y + 1) {
@@ -797,10 +827,15 @@ export function startGame({ config, lesson, next, onFinish }) {
   // ---------- Panels ----------
   const panel = byId('panel');
 
-  function renderLevels() {
+  const starCount = i => state.stars[i].filter(Boolean).length;
+  const navStars = i => `<span class="nav-stars" aria-label="${starCount(i)} of 3 stars">${state.stars[i]
+    .map(on => `<i class="${on ? 'on' : ''}" aria-hidden="true">★</i>`).join('')}</span>`;
+
+  /** printIn: a level that just unlocked, which prints onto the rail. */
+  function renderLevels(printIn = null) {
     byId('levels').innerHTML = LEVELS.map((l, i) =>
-      `<li><button type="button" data-level="${i}" ${i === state.level ? 'aria-current="true"' : ''} ${i > state.unlocked ? 'disabled' : ''}>` +
-      `<span class="n"><span>LEVEL ${l.id}</span><span>${state.passed[i] ? 'PASSED ✓' : i > state.unlocked ? 'LOCKED' : ''}</span></span>` +
+      `<li><button type="button" data-level="${i}" ${i === state.level ? 'aria-current="true"' : ''} ${i > state.navUnlocked ? 'disabled' : ''} ${i === printIn ? 'class="print-in"' : ''}>` +
+      `<span class="n"><span>LEVEL ${l.id}</span>${i > state.navUnlocked ? '<span>LOCKED</span>' : navStars(i)}</span>` +
       `<span class="t">${l.name}</span></button></li>`).join('');
   }
 
@@ -925,34 +960,93 @@ export function startGame({ config, lesson, next, onFinish }) {
 `;
   }
 
+  function starListHTML(lv, on, extra = () => '') {
+    return `<ul class="stars" aria-label="Stars for this level">${starLabels(lv).map((label, i) =>
+      `<li class="${on[i] ? 'on' : ''}"><span class="star" aria-hidden="true">★</span><span class="star-label">${label}</span>${extra(i)}<span class="sr">${on[i] ? ', earned' : ''}</span></li>`).join('')}</ul>`;
+  }
+
+  // Your call: one tap to predict the rush before it runs. Optional, and worth a star.
+  function callHTML(lv, d) {
+    const g = state.guesses[state.level];
+    return `
+      <div class="call">
+        <p class="call-q"><span class="slo">YOUR CALL</span>${lv.predict.q(d)}</p>
+        <div class="call-opts" role="group" aria-label="Your prediction">
+          ${lv.predict.options.map((o, i) => `<button type="button" class="opt" data-act="guess" data-guess="${i}" aria-pressed="${g === i}">${o.label}</button>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  const pct = (cost, lv) => `${Math.min(100, (cost / lv.budget) * 100)}%`;
+
   function renderDesign() {
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
     const cost = designCost(d);
     const over = cost > lv.budget;
+    const guessed = state.guesses[state.level] !== null;
     panel.innerHTML = `
       <div class="ticket-head"><span>LEVEL ${lv.id} · BRIEF</span><span>BUDGET $${lv.budget}</span></div>
       <h2>${lv.name}</h2>
       <p class="quiet">${lv.brief}</p>
       <h3>Goals</h3>
       ${goalsHTML(lv, null)}
+      ${starListHTML(lv, state.stars[state.level])}
       <h3>Design your shop</h3>
       <div class="build">
         ${baristaPart(lv, d)}
         ${lv.controls ? controlParts(lv, d) : lv.policies ? policyParts(lv, d) : railParts(lv, d)}
-        <div class="lockrow">
-          ${LOCKED.map(l => `<div class="part locked"><div><span class="name">${l.name}</span><span class="sys">${l.sys} · ${l.lesson}</span></div></div>`).join('')}
-        </div>
       </div>
+      <p class="coming"><span class="coming-label">Coming later</span> ${LOCKED.map(l => `<span title="${l.sys} · ${l.lesson}">${l.name}</span>`).join(' · ')}</p>
       <div class="budget">
-        <div class="row"><span>Cost of your design</span><span>$${cost} of $${lv.budget}</span></div>
-        <div class="bar ${over ? 'over' : ''}"><i style="width:${Math.min(100, (cost / lv.budget) * 100)}%"></i></div>
+        <div class="row"><span>Cost of your design</span><span><span class="cost-num">$${cost}</span> of $${lv.budget}</span></div>
+        <div class="bar ${over ? 'over' : ''}"><i style="width:${pct(cost, lv)}"></i></div>
         ${over ? `<p class="note" style="color:var(--bad);margin:0">Over budget. Remove something to run the rush.</p>` : ''}
       </div>
+      ${callHTML(lv, d)}
       <div class="actions">
-        <button type="button" class="btn" data-act="run" ${over ? 'disabled' : ''}>Run the rush</button>
-        <span class="note">The X-ray shows the system you're building.</span>
+        <button type="button" class="btn run-btn" data-act="run" ${over ? 'disabled' : ''}>Run the rush</button>
+        <span class="note">${guessed ? "The X-ray shows the system you're building." : 'Make your call for the ★ Called it star.'}</span>
       </div>`;
+    reactDesign(lv, cost, over);
+  }
+
+  // ---------- Input reactions ----------
+  // The control you touched bumps, the cost rolls to its new number, the budget bar slides,
+  // and going over budget gives it a shake. Without a real page these are skipped.
+  let bumpAct = null;
+  let roll = null;
+
+  function reactDesign(lv, cost, over) {
+    const from = state.shownCost[state.level];
+    state.shownCost[state.level] = cost;
+    if (!panel.querySelector) return;
+    const restart = (el, cls) => { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+    if (bumpAct) {
+      const el = bumpAct === 'policy' ? panel.querySelector('input[name="policy"]:checked')?.closest('.choice')
+        : bumpAct === 'guess' ? panel.querySelector('.opt[aria-pressed="true"]')
+        : panel.querySelector(`[data-act="${bumpAct}"]`)?.closest('.part');
+      restart(el, 'bump');
+      bumpAct = null;
+    }
+    if (from === null || from === cost || REDUCED) return;
+    const num = panel.querySelector('.cost-num');
+    const bar = panel.querySelector('.budget .bar i');
+    if (num) { num.textContent = `$${from}`; roll = { el: num, from, to: cost, start: null }; }
+    if (bar) {
+      bar.style.transition = 'none'; bar.style.width = pct(from, lv);
+      void bar.offsetWidth;
+      bar.style.transition = ''; bar.style.width = pct(cost, lv);
+    }
+    if (over && from <= lv.budget) restart(panel.querySelector('.budget'), 'jolt');
+  }
+
+  function tickRoll(now) {
+    if (!roll) return;
+    roll.start ??= now;
+    const p = clamp((now - roll.start) / 260, 0, 1);
+    roll.el.textContent = `$${Math.round(roll.from + (roll.to - roll.from) * (1 - (1 - p) ** 3))}`;
+    if (p >= 1) roll = null;
   }
 
 
@@ -987,6 +1081,15 @@ ${batchFacts(s)}
         <div><dt>Cost</dt><dd>$${designCost(d)}</dd></div>
 ${batchFacts(s)}
       </dl>`;
+  }
+
+  function callResultHTML(lv, d, s) {
+    const g = state.runGuess;
+    if (g === null) return '';
+    const got = outcome(lv.predict, s, d);
+    const right = g === got;
+    return `<p class="call-result ${right ? 'ok' : 'bad'}"><span class="slo">YOUR CALL</span>You said <b>${lv.predict.options[g].label.toLowerCase()}</b>. ` +
+      `It was <b>${lv.predict.options[got].label.toLowerCase()}</b>: ${lv.predict.actual(s, d)}. ${right ? 'Called it.' : 'Not this time.'}</p>`;
   }
 
   // Wrap the first number in a label so the reveal can count it up from zero.
@@ -1025,7 +1128,9 @@ ${batchFacts(s)}
         <p class="stamp ${ok ? 'ok' : 'no'}">${ok ? 'Goals met' : 'Not yet'}</p>
         <span class="stamp-sub">${ok ? 'ALL GOALS MET' : `${missed} GOAL${missed > 1 ? 'S' : ''} MISSED`}</span>
       </div>
+      ${starListHTML(lv, state.runStars, i => (state.newStars[i] ? '<span class="new-tag">NEW</span>' : '')).replace('class="stars"', 'class="stars debrief-stars"')}
       <div class="reveal-late">
+        ${callResultHTML(lv, d, s)}
         <p class="what">${lv.explain(d, s)}</p>
         <div class="actions">
           ${hasNext ? `<button type="button" class="btn" data-act="next">Next level</button>` : ''}
@@ -1056,17 +1161,28 @@ ${batchFacts(s)}
   // ---------- The debrief reveal ----------
   // The receipt prints line by line, each number counts up and gets its mark, then the
   // stamp lands. Timed in real milliseconds, not shop time. A tap on the ticket skips it.
-  const REVEAL = { first: 250, gap: 420, count: 360, stampAfter: 300, settle: 400 };
+  const REVEAL = { first: 250, gap: 420, count: 360, stampAfter: 300, starFirst: 420, starGap: 300, settle: 400 };
   let reveal = null;
 
   function beginReveal(ok) {
     panel.classList.remove('revealing', 'jolt');
-    if (!hasPanel || !panel.querySelectorAll || REDUCED) { sound.play(ok ? 'stamp' : 'stampMiss'); return; }
+    if (!hasPanel || !panel.querySelectorAll || REDUCED) { sound.play(ok ? 'stamp' : 'stampMiss'); afterReveal(); return; }
     const lines = [...panel.querySelectorAll('.tally li')];
     const counts = lines.map(li => [...li.querySelectorAll('.count')]);
     for (const c of counts.flat()) c.textContent = (0).toFixed(Number(c.dataset.dp));
     panel.classList.add('revealing');
-    reveal = { start: null, ok, lines, counts, shown: 0, marked: 0, stamped: false, stamp: panel.querySelector('.stamp') };
+    const stars = [...panel.querySelectorAll('.debrief-stars li')];
+    reveal = { start: null, ok, lines, counts, shown: 0, marked: 0, stamped: false, stamp: panel.querySelector('.stamp'), stars, starsShown: 0 };
+  }
+
+  // After the receipt: a level that just unlocked prints onto the level rail.
+  function afterReveal() {
+    if (state.pendingUnlock === null) return;
+    const i = state.pendingUnlock;
+    state.pendingUnlock = null;
+    state.navUnlocked = Math.max(state.navUnlocked, state.unlocked);
+    renderLevels(i);
+    sound.play('unlock');
   }
 
   function landStamp() {
@@ -1098,16 +1214,25 @@ ${batchFacts(s)}
     }
     const stampAt = lineAt(lines.length - 1) + REVEAL.count + REVEAL.stampAfter;
     if (!reveal.stamped && t >= stampAt) landStamp();
-    if (t >= stampAt + REVEAL.settle) finishReveal();
+    const starAt = i => stampAt + REVEAL.starFirst + i * REVEAL.starGap;
+    while (reveal.starsShown < reveal.stars.length && t >= starAt(reveal.starsShown)) {
+      const li = reveal.stars[reveal.starsShown];
+      li.classList.add('in');
+      if (li.classList.contains('on')) sound.play('star', reveal.starsShown); else sound.play('starMiss');
+      reveal.starsShown++;
+    }
+    if (t >= starAt(Math.max(0, reveal.stars.length - 1)) + REVEAL.settle) finishReveal();
   }
 
   function finishReveal() {
     if (!reveal) return;
     for (const li of reveal.lines) li.classList.add('in');
+    for (const li of reveal.stars) li.classList.add('in');
     for (const c of reveal.counts.flat()) c.textContent = c.dataset.to;
     if (!reveal.stamped) landStamp();
     panel.classList.remove('revealing');
     reveal = null;
+    afterReveal();
   }
 
   // ---------- Freeze frames ----------
@@ -1143,7 +1268,7 @@ ${batchFacts(s)}
     seenMoments.add(m.id);
     moment = { m };
     state.playing = false;
-    if (m.xray && !state.xray) setXray(true);
+    if (m.xray && !state.xray) setXray(true, true);
     const ctx = { run: state.run, d: state.designs[state.level], ...info };
     const track = info.track || (() => info.at || { x: W / 2, y: H / 2 });
     moment.track = track;
@@ -1159,6 +1284,7 @@ ${batchFacts(s)}
       <p class="moment-text">${m.text(ctx)}</p>
       <p class="moment-soft"><span class="slo">IN SOFTWARE</span>${m.soft}</p>
       <button type="button" class="moment-go">Got it <span class="key" aria-hidden="true">Space</span></button>`;
+    define.link(momentCard);
     // On wide screens the card floats beside the spotlight; on phones it sits under the shop.
     const below = sy < h / 2;
     momentCard.dataset.side = below ? 'below' : 'above';
@@ -1271,9 +1397,11 @@ ${batchFacts(s)}
 
   function renderPanel() {
     if (reveal && state.phase !== 'debrief') { reveal = null; panel.classList.remove('revealing', 'jolt'); }
+    define.close();
     if (state.phase === 'design') renderDesign();
     else if (state.phase === 'run') renderRunning();
     else renderDebrief();
+    define.link(panel);
     renderPhase();
     if (panelHolder && state.phase !== shownPhase && state.phase !== 'run') panelHolder.open = true;
     shownPhase = state.phase;
@@ -1285,24 +1413,29 @@ ${batchFacts(s)}
     if (!b || b.disabled) return;
     const d = state.designs[state.level];
     const act = b.dataset.act;
-    if (act === 'minus') { d.baristas = Math.max(1, d.baristas - 1); designChanged(); }
-    else if (act === 'plus') { d.baristas = Math.min(4, d.baristas + 1); designChanged(); }
-    else if (act === 'rail') { d.rail = !d.rail; designChanged(); }
-    else if (act === 'batch') { d.batch = !d.batch; designChanged(); }
-    else if (act === 'async') { d.sync = !d.sync; designChanged(); }
-    else if (act === 'wait-minus') { d.batchWait = Math.max(0, d.batchWait - 60); designChanged(); }
-    else if (act === 'wait-plus') { d.batchWait = Math.min(360, d.batchWait + 60); designChanged(); }
-    else if (act === 'every-minus') { d.mobileEvery = Math.max(2, d.mobileEvery - 1); designChanged(); }
-    else if (act === 'every-plus') { d.mobileEvery = Math.min(6, d.mobileEvery + 1); designChanged(); }
+    if (act === 'minus') { d.baristas = Math.max(1, d.baristas - 1); designChanged(act); }
+    else if (act === 'plus') { d.baristas = Math.min(4, d.baristas + 1); designChanged(act); }
+    else if (act === 'rail') { d.rail = !d.rail; designChanged(act); }
+    else if (act === 'batch') { d.batch = !d.batch; designChanged(act); }
+    else if (act === 'async') { d.sync = !d.sync; designChanged(act); }
+    else if (act === 'wait-minus') { d.batchWait = Math.max(0, d.batchWait - 60); designChanged(act); }
+    else if (act === 'wait-plus') { d.batchWait = Math.min(360, d.batchWait + 60); designChanged(act); }
+    else if (act === 'every-minus') { d.mobileEvery = Math.max(2, d.mobileEvery - 1); designChanged(act); }
+    else if (act === 'every-plus') { d.mobileEvery = Math.min(6, d.mobileEvery + 1); designChanged(act); }
+    else if (act === 'guess') {
+      const g = Number(b.dataset.guess);
+      state.guesses[state.level] = state.guesses[state.level] === g ? null : g; // Tap again to take it back.
+      sound.play('tick'); bumpAct = 'guess'; renderPanel();
+    }
     else if (act === 'run') startRush();
     else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); renderChart(); }
     else if (act === 'next') setLevel(state.level + 1);
-    else if (act === 'replay') startRush();
+    else if (act === 'replay') startRush({ replay: true });
   });
   panel.addEventListener('change', ev => {
     if (ev.target.name !== 'policy') return;
     state.designs[state.level].policy = ev.target.value;
-    designChanged();
+    designChanged('policy');
   });
   panel.addEventListener('input', ev => {
     if (ev.target.id !== 'capacity') return;
@@ -1317,8 +1450,9 @@ ${batchFacts(s)}
     if (b && !b.disabled) setLevel(Number(b.dataset.level));
   });
 
-  function designChanged() {
+  function designChanged(act = null) {
     sound.play('tick');
+    bumpAct = act;
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
     if (lv.capacityUnlocked && d.rail && !Number.isFinite(d.capacity)) d.capacity = 30;
@@ -1330,6 +1464,9 @@ ${batchFacts(s)}
   function setLevel(i) {
     state.level = i;
     state.unlocked = Math.max(state.unlocked, i);
+    state.navUnlocked = Math.max(state.navUnlocked, state.unlocked);
+    state.pendingUnlock = null;
+    fx.clear();
     state.phase = 'design'; state.playing = false;
     state.run = idleRun();
     state.summary = null;
@@ -1340,8 +1477,14 @@ ${batchFacts(s)}
     renderLevels(); renderPanel(); renderChart();
   }
 
-  function startRush() {
+  /** replay: "Watch it again", which doesn't count as a new try or carry a prediction. */
+  function startRush({ replay = false } = {}) {
     const d = state.designs[state.level];
+    if (!replay) state.rushes[state.level]++;
+    state.runGuess = replay ? null : state.guesses[state.level];
+    state.guesses[state.level] = null; // Each rush gets a fresh call.
+    sound.play('run');
+    fx.clear();
     const preview = summarize(completeRun(d, { config, rush: LEVELS[state.level].rush }));
     xMax = Math.max(60, Math.ceil(preview.endMin / 15) * 15);
     state.run = makeRun(d);
@@ -1359,10 +1502,19 @@ ${batchFacts(s)}
     state.summary = summarize(run);
     const lv = LEVELS[state.level];
     const ok = lv.goals.every(g => g.ok(state.summary));
+    const before = state.unlocked;
     if (ok) {
       state.passed[state.level] = true;
       state.unlocked = Math.max(state.unlocked, Math.min(state.level + 1, LEVELS.length - 1));
     }
+    if (state.unlocked > before) state.pendingUnlock = state.unlocked;
+    const d = state.designs[state.level];
+    const best = state.stars[state.level];
+    state.runStars = lv.predict && lv.stretch
+      ? starsFor(lv, d, state.summary, { rushes: state.rushes[state.level], guess: state.runGuess })
+      : [ok, false, false];
+    state.newStars = state.runStars.map((on, i) => on && !best[i]);
+    state.runStars.forEach((on, i) => { if (on) best[i] = true; });
     stopLive();
     state.phase = 'debrief';
     hud.caption.innerHTML = `${clock(run.lastEventT)}  Rush over. ${run.served} served, ${run.rejected} turned away.`;
@@ -1374,17 +1526,22 @@ ${batchFacts(s)}
 
   // ---------- Controls ----------
   const xrayBtn = byId('xrayBtn');
-  function setXray(on) {
+  /** flair: the player flipped it (or a freeze frame did): play the sound and the sweep. */
+  function setXray(on, flair = false) {
+    if (flair && on !== state.xray) {
+      sound.play(on ? 'xray' : 'xrayOff');
+      if (!REDUCED && sceneEl.classList) { sceneEl.classList.remove('sweep'); void sceneEl.offsetWidth; sceneEl.classList.add('sweep'); }
+    }
     state.xray = on;
     xrayBtn.setAttribute('aria-pressed', String(on));
     xrayBtn.setAttribute('aria-label', on ? 'Showing the X-ray. Switch back to the counter' : 'Showing the counter. Open the X-ray');
     byId('key').classList.toggle('show', on);
     xrayBtn.classList.toggle('nudge', !on && state.phase === 'run' && !state.xrayUsed);
   }
-  xrayBtn.addEventListener('click', () => { state.xrayUsed = true; setXray(!state.xray); });
+  xrayBtn.addEventListener('click', () => { state.xrayUsed = true; setXray(!state.xray, true); });
   document.addEventListener('keydown', ev => {
     if (moment && (ev.key === ' ' || ev.key === 'Enter')) { ev.preventDefault?.(); resume(); return; }
-    if ((ev.key === 'x' || ev.key === 'X') && !ev.target.closest('input, textarea')) { state.xrayUsed = true; setXray(!state.xray); }
+    if ((ev.key === 'x' || ev.key === 'X') && !ev.target.closest('input, textarea')) { state.xrayUsed = true; setXray(!state.xray, true); }
   });
   const muteBtn = byId('mute');
   function renderMute() {
@@ -1402,12 +1559,30 @@ ${batchFacts(s)}
     queue: byId('st-queue'), caption: byId('caption'),
   };
   let lastHud = 0, lastChart = 0, lastCaptionAt = 0, lastCaption = '';
+  let shownServed = 0, shownRejected = 0, ambientOn = false;
+  const bump = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  // The rush's background: steam hiss with each busy barista, chatter as the shop fills.
+  function updateAmbient(run) {
+    const on = state.phase === 'run' && state.playing && !document.hidden;
+    if (!on) { if (ambientOn) { sound.ambient(0, 0); ambientOn = false; } return; }
+    const busy = run.baristas.filter(b => b.ticket && !b.holding).length;
+    let inShop = 0;
+    for (const p of run.customers) if (!offstage(run, p)) inShop++;
+    sound.ambient(busy ? 0.3 + busy * 0.17 : 0, Math.min(1, 0.15 + inShop / 24));
+    ambientOn = true;
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { sound.ambient(0, 0); ambientOn = false; } });
+
   function updateHud(now) {
     const run = state.run;
     if (now - lastHud > 90) {
       lastHud = now;
       updateLive();
+      updateAmbient(run);
       hud.clock.textContent = clock(run.t);
+      if (run.served !== shownServed) { if (run.served > shownServed && !REDUCED) bump(hud.served, 'bump'); shownServed = run.served; }
+      if (run.rejected !== shownRejected) { if (run.rejected > shownRejected && !REDUCED) bump(hud.rejected, 'bump-bad'); shownRejected = run.rejected; }
       hud.served.textContent = run.served;
       hud.rejected.textContent = run.rejected;
       if (run.hasApp) {
@@ -1440,6 +1615,7 @@ ${batchFacts(s)}
     updateVisuals(run, state.phase === 'run' && !state.playing && !moment ? 0 : dt);
     placeSpot();
     tickReveal(now);
+    tickRoll(now);
     if (state.phase === 'run' && !run.finished && run.events.length === 0 && run.customers.every(p => p.state === 'gone')) {
       run.finished = true; onFinished(run);
     }
@@ -1455,6 +1631,7 @@ ${batchFacts(s)}
     scale = Math.max(0.2, state.cssWidth / W) * dpr;
     canvas.width = Math.round(W * scale);
     canvas.height = Math.round(H * scale);
+    if (fxCanvas) { fxCanvas.width = canvas.width; fxCanvas.height = canvas.height; fxDirty = true; }
     backLayer = layer(drawBack); frontLayer = layer(drawFront); shadeLayer = layer(drawShade);
   }
   new ResizeObserver(resize).observe(byId('scene'));
@@ -1462,6 +1639,7 @@ ${batchFacts(s)}
 
   resize();
   setLevel(0);
+  define.link(hud.served.closest?.('dl'));
   requestAnimationFrame(frame);
 
   return {

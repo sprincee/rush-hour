@@ -1,7 +1,7 @@
 // Lesson 2, the order line: levels, goals, and the concept each level teaches.
 // Kept as data so the game and the tests read the same definitions.
 
-import { COST, designCost, evaluate } from './common.mjs';
+import { COST, designCost, evaluate, spendAtMost, solveIn, minutes } from './common.mjs';
 
 export { COST, designCost, evaluate };
 
@@ -103,3 +103,37 @@ LEVELS[2].explain = (d, s) => {
   if (many) return `The rail filled up and turned away <strong>${s.rejected}</strong> customers. A bigger rail, or more baristas to drain it faster, would keep more of them.`;
   return `A rail of ${d.capacity} with ${d.baristas} barista${d.baristas > 1 ? 's' : ''} kept every wait under 20 minutes and turned away ${s.rejected}. That's the trade-off a queue limit makes: a quick "sorry, we're full" for some people, so nobody waits forever.`;
 };
+
+// Your call: one question before each rush, and a stretch star. See starsFor in common.mjs.
+LEVELS[0].predict = {
+  q: () => 'How many of the 50 customers will walk out?',
+  options: [
+    { label: 'Nobody', test: s => s.rejected === 0 },
+    { label: '1 to 20', test: s => s.rejected <= 20 },
+    { label: 'More than 20', test: () => true },
+  ],
+  actual: s => `${s.rejected} walked out`,
+};
+LEVELS[0].stretch = spendAtMost(20);
+LEVELS[1].predict = {
+  q: () => 'How long will the longest wait be?',
+  options: [
+    { label: 'Under 20 minutes', test: s => s.longestWaitMin < 20 },
+    { label: '20 to 40 minutes', test: s => s.longestWaitMin <= 40 },
+    { label: 'Over 40 minutes', test: () => true },
+  ],
+  actual: s => `longest ${mins(s)} min`,
+};
+LEVELS[1].stretch = solveIn(3);
+LEVELS[2].predict = {
+  q: d => (d.rail && Number.isFinite(d.capacity)
+    ? `Your rail holds ${d.capacity} tickets. How many customers will be turned away?`
+    : 'How many customers will be turned away?'),
+  options: [
+    { label: 'Fewer than 15', test: s => s.rejected < 15 },
+    { label: '15 to 25', test: s => s.rejected <= 25 },
+    { label: 'More than 25', test: () => true },
+  ],
+  actual: s => `${s.rejected} turned away`,
+};
+LEVELS[2].stretch = { label: 'Turn away 20 or fewer', ok: s => s.rejected <= 20 };
