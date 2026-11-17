@@ -123,7 +123,8 @@ export function startGame({ config, lesson, next, onFinish }) {
     const run = state.run;
     const t = run.t;
     if (kind === 'accepted') sound.play('ticket');
-    if (kind === 'accepted' && c.channel !== 'mobile') trigger('accepted', { c, item: menu[c.item].label.toLowerCase() });
+    if (kind === 'accepted') trigger(c.channel === 'mobile' ? 'appOrder' : 'accepted', { c, item: menu[c.item].label.toLowerCase() });
+    if (kind === 'done' && extra.partner) trigger('batchDone', { ticket: extra.ticket, partner: extra.partner });
     if (kind === 'accepted' && c.channel === 'mobile') {
       run.pops.push({ text: '202 · app order', x: APP_PRINTER.x, y: 104, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()} in the app. <b>→ The request skipped the register and went straight to the app queue (line:mobile).</b>`;
@@ -792,107 +793,6 @@ export function startGame({ config, lesson, next, onFinish }) {
     }).join('')}<li>${s ? badge(true) : '<span class="badge">BUDGET</span>'}<span class="goal-text">Stay within the $${lv.budget} budget</span></li></ul>`;
   }
 
-  function baristaPart(lv, d) {
-    if (lv.controls && !lv.controls.includes('baristas')) return `
-        <div class="part">
-          <div><span class="name">Baristas</span><span class="sys">Workers</span></div>
-          <strong>${d.baristas}, fixed</strong>
-          <p class="desc">Today's crew is set. $${COST.barista} each for the rush.</p>
-        </div>`;
-    return `
-        <div class="part">
-          <div><span class="name">Baristas</span><span class="sys">Workers</span></div>
-          <div class="stepper">
-            <button type="button" data-act="minus" aria-label="Remove a barista" ${d.baristas <= 1 ? 'disabled' : ''}>−</button>
-            <output aria-live="polite">${d.baristas}</output>
-            <button type="button" data-act="plus" aria-label="Add a barista" ${d.baristas >= 4 ? 'disabled' : ''}>+</button>
-          </div>
-          <p class="desc">Each barista makes one drink at a time. $${COST.barista} each for the rush.</p>
-        </div>`;
-  }
-
-  // For levels that list their controls, like lesson 4.
-  function controlParts(lv, d) {
-    const minutes = d.batchWait / 60;
-    let html = lv.policies ? policyParts(lv, d) : `
-        <div class="part">
-          <div><span class="name">Ticket rail</span><span class="sys">Queue</span></div>
-          <strong>Included</strong>
-          <p class="desc">Tickets wait here until a barista is free. $${COST.rail}.</p>
-        </div>`;
-    if (lv.controls.includes('async')) html += `
-        <div class="part">
-          <div><span class="name">Call names</span><span class="sys">Asynchronous</span></div>
-          <button type="button" class="switch" data-act="async" aria-pressed="${!d.sync}">${d.sync ? 'Off' : 'On'}</button>
-          <p class="desc">${d.sync
-            ? 'Off: the cashier waits at the bar until each drink is made, then takes the next order.'
-            : 'On: the cashier prints a ticket, says "we\'ll call your name", and takes the next order right away.'}</p>
-        </div>`;
-    if (lv.controls.includes('batch')) html += `
-        <div class="part">
-          <div><span class="name">Batch the milk</span><span class="sys">Batching</span></div>
-          <button type="button" class="switch" data-act="batch" aria-pressed="${d.batch}">${d.batch ? 'On' : 'Off'}</button>
-          <p class="desc">When another latte is waiting, steam for both at once. Two lattes take 1.25 times as long as one. Cappuccinos can't share a pitcher.</p>
-        </div>`;
-    if (lv.controls.includes('batchWait')) html += `
-        <div class="part">
-          <div><span class="name">Wait for a second latte</span><span class="sys">Batch window</span></div>
-          <div class="stepper">
-            <button type="button" data-act="wait-minus" aria-label="Wait one minute less" ${minutes <= 0 ? 'disabled' : ''}>−</button>
-            <output aria-live="polite">${minutes === 0 ? "Don't wait" : `${minutes} min`}</output>
-            <button type="button" data-act="wait-plus" aria-label="Wait one minute more" ${minutes >= 6 ? 'disabled' : ''}>+</button>
-          </div>
-          <p class="desc">A barista with one latte holds it this long, hoping a second latte arrives to share the pitcher. Batching is on.</p>
-        </div>`;
-    return html;
-  }
-
-  function railParts(lv, d) {
-    return `
-        <div class="part">
-          <div><span class="name">Ticket rail</span><span class="sys">Queue</span></div>
-          <button type="button" class="switch" data-act="rail" aria-pressed="${d.rail}">${d.rail ? 'On' : 'Off'}</button>
-          <p class="desc">Tickets wait here until a barista is free, so the cashier can keep taking orders. $${COST.rail}.</p>
-        </div>
-        <div class="part ${lv.capacityUnlocked && d.rail ? '' : 'locked'}">
-          <div><span class="name">Rail size</span><span class="sys">Queue limit</span></div>
-          <strong>${lv.capacityUnlocked && d.rail ? `${d.capacity} tickets` : 'No limit'}</strong>
-          ${lv.capacityUnlocked && d.rail
-            ? `<input type="range" id="capacity" min="5" max="50" step="1" value="${d.capacity}" aria-label="Rail size in tickets">
-               <p class="desc">When the rail is full, the cashier turns new customers away.</p>`
-            : `<p class="desc">${lv.capacityUnlocked ? 'Turn the rail on to set its size.' : 'Unlocks in level 2.3.'}</p>`}
-        </div>
-`;
-  }
-
-  function policyParts(lv, d) {
-    const options = lv.policies.map(p => `
-            <label class="choice"><input type="radio" name="policy" value="${p}" ${d.policy === p ? 'checked' : ''}>
-              <span><strong>${POLICIES[p]}</strong><span class="desc">${POLICY_HELP[p]}</span></span></label>`).join('');
-    return `
-        <div class="part">
-          <div><span class="name">Two ticket rails</span><span class="sys">Two queues</span></div>
-          <strong>Included</strong>
-          <p class="desc">Walk-in tickets print at the register. App orders print on their own printer and skip the register. $${COST.rail}.</p>
-        </div>
-        <div class="part">
-          <div><span class="name">How baristas pick the next ticket</span><span class="sys">Scheduling policy</span></div>
-          <div class="choices" role="radiogroup" aria-label="How baristas pick the next ticket">${options}</div>
-          ${d.policy === 'weighted'
-            ? `<div class="every">
-                 <span class="desc">Every</span>
-                 <div class="stepper">
-                   <button type="button" data-act="every-minus" aria-label="App drinks more often" ${d.mobileEvery <= 2 ? 'disabled' : ''}>−</button>
-                   <output aria-live="polite">${ordinal(d.mobileEvery)}</output>
-                   <button type="button" data-act="every-plus" aria-label="App drinks less often" ${d.mobileEvery >= 6 ? 'disabled' : ''}>+</button>
-                 </div>
-                 <span class="desc">drink comes from the app rail</span>
-               </div>`
-            : ''}
-        </div>
-`;
-  }
-
   function starListHTML(lv, on, extra = () => '') {
     return `<ul class="stars" aria-label="Stars for this level">${starLabels(lv).map((label, i) =>
       `<li class="${on[i] ? 'on' : ''}"><span class="star" aria-hidden="true">★</span><span class="star-label">${label}</span>${extra(i)}<span class="sr">${on[i] ? ', earned' : ''}</span></li>`).join('')}</ul>`;
@@ -917,34 +817,16 @@ export function startGame({ config, lesson, next, onFinish }) {
     const d = state.designs[state.level];
     const cost = designCost(d);
     const over = cost > lv.budget;
-    const guessed = state.guesses[state.level] !== null;
     panel.innerHTML = `
       <div class="ticket-head"><span>LEVEL ${lv.id} · BRIEF</span><span>BUDGET $${lv.budget}</span></div>
       <h2>${lv.name}</h2>
-      ${lv.intro
-        ? `<button type="button" class="reread" data-act="brief">Reread the brief</button>`
-        : `<p class="quiet">${lv.brief}</p>`}
+      <button type="button" class="reread" data-act="brief">Reread the brief</button>
       <h3>Goals</h3>
       ${goalsHTML(lv, null)}
-      ${starListHTML(lv, state.stars[state.level])}
-      ${onShop ? '' : `<h3>Design your shop</h3>
-      <div class="build">
-        ${baristaPart(lv, d)}
-        ${lv.controls ? controlParts(lv, d) : lv.policies ? policyParts(lv, d) : railParts(lv, d)}
-      </div>`}
-      ${onShop ? '' : `
-      <div class="budget">
-        <div class="row"><span>Cost of your design</span><span><span class="cost-num">$${cost}</span> of $${lv.budget}</span></div>
-        <div class="bar ${over ? 'over' : ''}"><i style="width:${pct(cost, lv)}"></i></div>
-        ${over ? `<p class="note" style="color:var(--bad);margin:0">Over budget. Remove something to run the rush.</p>` : ''}
-      </div>
-      ${callHTML(lv, d)}
-      <div class="actions">
-        <button type="button" class="btn run-btn" data-act="run" ${over ? 'disabled' : ''}>Run the rush</button>
-        <span class="note">${guessed ? "The X-ray shows the system you're building." : 'Make your call for the ★ Called it star.'}</span>
-      </div>`}`;
-    // Lessons with the controls on the shop: your call, the cost, and Run sit under the shop.
-    if (onShop) setupEl.innerHTML = `
+      ${starListHTML(lv, state.stars[state.level])}`;
+    // You design on the shop; your call, the cost, and Run sit under it.
+    setupEl.innerHTML = `
+      <ul class="setup-goals">${lv.goals.map(g => `<li><span class="slo">GOAL</span>${g.label}</li>`).join('')}</ul>
       ${callHTML(lv, d)}
       <div class="setup-run">
         <div class="budget">
@@ -971,7 +853,7 @@ export function startGame({ config, lesson, next, onFinish }) {
     // The first match across the ticket, the setup under the shop, and the shop tags.
     const q = sel => panel.querySelector(sel) || setupEl.querySelector?.(sel) || tagsEl.querySelector?.(sel);
     if (bumpAct) {
-      const el = bumpAct === 'policy' ? q('input[name="policy"]:checked')?.closest('.choice')
+      const el = bumpAct === 'policy' ? q('select[name="policy"]')?.closest('.shop-tag')
         : bumpAct === 'guess' ? q('.opt[aria-pressed="true"]')
         : q(`[data-act="${bumpAct}"]`)?.closest('.part, .shop-tag');
       restart(el, 'bump');
@@ -1207,6 +1089,9 @@ ${batchFacts(s)}
     cashier: () => ({ x: CASHIER_X, y: 214 }),
     register: () => ({ x: REGISTER_SPOT.x + 40, y: REGISTER_SPOT.y - 40 }),
     rail: () => railSpot(),
+    bar: () => ({ x: 585, y: 250 }),
+    appPrinter: () => ({ x: APP_PRINTER.x, y: APP_PRINTER.y - 4 }),
+    appRail: () => ({ x: APP_RAIL.x0 + Math.min(Math.max(0, state.run.mobileRail.length - 1), APP_RAIL.slots - 1) * APP_RAIL.step, y: APP_RAIL.y + 14 }),
   };
 
   function trigger(on, info = {}) {
@@ -1217,7 +1102,8 @@ ${batchFacts(s)}
       && (x.level === undefined || x.level === lv.id)
       && (x.mode === undefined || x.mode === mode)
       && (x.why === undefined || x.why === info.why)
-      && (x.goal === undefined || x.goal === info.goal));
+      && (x.goal === undefined || x.goal === info.goal)
+      && (x.when === undefined || x.when({ run: state.run, d: state.designs[state.level], ...info })));
     if (m) freeze(m, m.spot ? { ...info, at: SPOTS[m.spot](), track: SPOTS[m.spot] } : info);
   }
 
@@ -1348,16 +1234,31 @@ ${batchFacts(s)}
   }
 
   // ---------- Design tags on the shop ----------
-  // For lessons with CONTROLS_ON_SHOP: each control is a small tag on the part of the shop it
-  // changes (an HTML layer, so the shop drawing doesn't change). On phones they sit in a row
-  // under the shop. They lock during the rush, and show software words under the X-ray.
+  // Each control is a small tag on the shop (an HTML layer, so the shop drawing doesn't
+  // change). On phones they sit in a row under the shop. They step aside during the rush,
+  // and show software words under the X-ray. The floor is empty while you design, so the
+  // tags that aren't about the counter sit there.
   const tagsEl = byId('shop-tags');
   const setupEl = byId('setup');
-  const onShop = Boolean(lesson.CONTROLS_ON_SHOP) && hasPanel;
-  const TAG_AT = { baristas: { x: 585, y: 362 }, async: { x: 232, y: 362 } };
+  const onShop = hasPanel;
+  const FLOOR_L = { x: 330, y: 445 }, FLOOR_L2 = { x: 330, y: 520 }, FLOOR_R = { x: 790, y: 445 };
+  const TAG_AT = {
+    baristas: { x: 585, y: 362 }, crew: { x: 585, y: 362 }, async: { x: 232, y: 362 },
+    rail: FLOOR_L, capacity: FLOOR_L2, policy: FLOOR_L, every: FLOOR_L2, batch: FLOOR_R, batchWait: FLOOR_R,
+  };
+
+  // Which tags a level shows, in order. A level without a baristas control shows its fixed crew.
+  function controlsFor(lv, d) {
+    const list = lv.controls ? [...lv.controls]
+      : lv.policies ? ['baristas', 'policy']
+      : ['baristas', 'rail', ...(lv.capacityUnlocked && d.rail ? ['capacity'] : [])];
+    if (!list.includes('baristas')) list.unshift('crew');
+    if (list.includes('policy') && d.policy === 'weighted') list.splice(list.indexOf('policy') + 1, 0, 'every');
+    return list.filter(k => TAG_AT[k]);
+  }
   const greeted = new Set(); // Levels whose tags have pulsed hello.
 
-  function tagHTML(key, d, locked) {
+  function tagHTML(key, d, locked, lv) {
     const dis = locked ? 'disabled' : '';
     const at = TAG_AT[key];
     const style = `style="--x:${(at.x / W * 100).toFixed(1)}%;--y:${(at.y / H * 100).toFixed(1)}%"`;
@@ -1372,6 +1273,31 @@ ${batchFacts(s)}
         </span>
         <span class="tag-price">$${COST.barista} each</span>
       </div>`;
+    const stepper = (minus, plus, value, labels, lo, hi) => `
+        <span class="stepper">
+          <button type="button" data-act="${minus}" aria-label="${labels[0]}" ${lo ? 'disabled' : ''}>−</button>
+          <output aria-live="polite">${value}</output>
+          <button type="button" data-act="${plus}" aria-label="${labels[1]}" ${hi ? 'disabled' : ''}>+</button>
+        </span>`;
+    const toggle = (act, on, label, sysOn, sysOff) => `
+        <button type="button" class="switch" data-act="${act}" aria-pressed="${on}" aria-label="${label}">
+          <span class="shop-val">${on ? 'On' : 'Off'}</span><span class="sys-val">${on ? sysOn : sysOff}</span>
+        </button>`;
+    const tag = (ctl, body) => `<div class="shop-tag" data-ctl="${ctl}" ${style}>${body}</div>`;
+    if (key === 'crew') return tag('crew', `${name('Baristas', 'Workers')}<strong class="tag-fixed">${d.baristas}, fixed</strong><span class="tag-price">$${COST.barista} each</span>`);
+    if (key === 'rail') return tag('rail', `${name('Ticket rail', 'Queue')}${toggle('rail', d.rail, 'Ticket rail', 'On', 'Off')}<span class="tag-price">$${COST.rail}</span>`);
+    if (key === 'capacity') return tag('capacity', `${name('Rail holds', 'Queue limit')}
+        <span class="tag-range"><input type="range" name="capacity" min="5" max="50" step="1" value="${d.capacity}" aria-label="Rail size in tickets"><output>${d.capacity}</output></span>
+        <span class="tag-price">Free</span>`);
+    if (key === 'policy') return tag('policy', `${name('Next ticket', 'Scheduling')}
+        <select name="policy" aria-label="How baristas pick the next ticket" title="${POLICY_HELP[d.policy]}">
+          ${lv.policies.map(p => `<option value="${p}" ${d.policy === p ? 'selected' : ''}>${POLICIES[p]}</option>`).join('')}
+        </select>`);
+    if (key === 'every') return tag('every', `${name('App drink', 'Fair share')}
+        ${stepper('every-minus', 'every-plus', `every ${ordinal(d.mobileEvery)}`, ['App drinks more often', 'App drinks less often'], d.mobileEvery <= 2, d.mobileEvery >= 6)}`);
+    if (key === 'batch') return tag('batch', `${name('Batch the milk', 'Batching')}${toggle('batch', d.batch, 'Batch the milk', 'On', 'Off')}<span class="tag-price">Free</span>`);
+    if (key === 'batchWait') return tag('batchWait', `${name('Wait for a 2nd latte', 'Batch window')}
+        ${stepper('wait-minus', 'wait-plus', d.batchWait ? `${d.batchWait / 60} min` : "Don't", ['Wait one minute less', 'Wait one minute more'], d.batchWait <= 0, d.batchWait >= 360)}`);
     if (key === 'async') return `
       <div class="shop-tag" data-ctl="async" ${style}>
         ${name('Call names', 'Async API')}
@@ -1392,7 +1318,7 @@ ${batchFacts(s)}
     // The setup under the shop (your call, cost, Run) is only there while designing.
     setupEl.hidden = state.phase !== 'design';
     if (state.phase !== 'design') setupEl.innerHTML = '';
-    tagsEl.innerHTML = (lv.controls || ['baristas']).filter(k => TAG_AT[k]).map(k => tagHTML(k, d, false)).join('');
+    tagsEl.innerHTML = controlsFor(lv, d).map(k => tagHTML(k, d, false, lv)).join('');
     tagsEl.classList.remove('hello');
     if (state.phase === 'design' && !greeted.has(lv.id)) { greeted.add(lv.id); void tagsEl.offsetWidth; tagsEl.classList.add('hello'); }
   }
@@ -1400,6 +1326,46 @@ ${batchFacts(s)}
   // The panel can sit in a collapsible <details> (the side ticket). Reopen it when a
   // new brief or the debrief arrives, so a player who folded it away still sees it.
   const panelHolder = panel.closest?.('details') ?? null;
+
+  // ---------- The ticket as a sheet on phones ----------
+  // Lessons with the controls on the shop: on phones the ticket isn't under the shop (you'd
+  // have to scroll away from the rush). It moves into a full-screen dialog that opens by
+  // itself for the debrief, and from the Ticket button any time. Desktop keeps it beside the shop.
+  const sheet = byId('ticket-sheet');
+  const sheetBody = sheet.querySelector?.('.sheet-body') ?? null;
+  const ticketBtn = byId('ticket-btn');
+  const phoneMQ = window.matchMedia('(max-width: 699px)');
+  let sheetMode = false;
+  let sheetOpens = 0;
+
+  function placeTicket() {
+    sheetMode = onShop && phoneMQ.matches;
+    ticketBtn.hidden = !sheetMode;
+    const tickets = panel.parentElement;
+    if (!tickets || !sheetBody || !panelHolder) return;
+    if (sheetMode && tickets.parentElement !== sheetBody) {
+      sheetBody.append(tickets);
+      panelHolder.hidden = true;
+    } else if (!sheetMode && tickets.parentElement === sheetBody) {
+      closeSheet();
+      panelHolder.append(tickets);
+      panelHolder.hidden = false;
+    }
+  }
+
+  function openSheet() {
+    if (!sheetMode) return;
+    sheetOpens++;
+    if (typeof sheet.showModal === 'function' && !sheet.open) sheet.showModal();
+  }
+  function closeSheet() { if (sheet.open) sheet.close(); }
+
+  ticketBtn.addEventListener('click', openSheet);
+  sheet.addEventListener('click', ev => {
+    if (ev.target === sheet || ev.target.closest?.('[data-close]')) closeSheet();
+  });
+  phoneMQ.addEventListener?.('change', placeTicket);
+  placeTicket();
   let shownPhase = null;
 
   function renderPanel() {
@@ -1430,12 +1396,17 @@ ${batchFacts(s)}
   tagsEl.addEventListener('click', ev => {
     const b = ev.target.closest('button');
     if (!b || b.disabled || state.phase === 'run') return;
-    if (state.phase === 'debrief') { // Changing the design after a rush starts the next one.
-      if (reveal) finishReveal();
-      state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true);
-    }
+    leaveDebrief();
     doAct(b);
   });
+
+  // Changing the design after a rush starts the next one.
+  function leaveDebrief() {
+    if (state.phase !== 'debrief') return;
+    if (reveal) finishReveal();
+    closeSheet();
+    state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true);
+  }
 
   function doAct(b) {
     const d = state.designs[state.level];
@@ -1456,22 +1427,23 @@ ${batchFacts(s)}
     }
     else if (act === 'run') startRush();
     else if (act === 'brief') openBrief(true);
-    else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); }
+    else if (act === 'change') { closeSheet(); state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); }
     else if (act === 'next') setLevel(state.level + 1);
     else if (act === 'replay') startRush({ replay: true });
   }
-  panel.addEventListener('change', ev => {
-    if (ev.target.name !== 'policy') return;
-    state.designs[state.level].policy = ev.target.value;
-    designChanged('policy');
+  tagsEl.addEventListener('change', ev => {
+    if (state.phase === 'run') return;
+    if (ev.target.name === 'policy') { leaveDebrief(); state.designs[state.level].policy = ev.target.value; designChanged('policy'); }
+    if (ev.target.name === 'capacity') sound.play('tick');
   });
-  panel.addEventListener('input', ev => {
-    if (ev.target.id !== 'capacity') return;
+  // The rail size slides without redrawing the tags, so the drag isn't interrupted.
+  tagsEl.addEventListener('input', ev => {
+    if (ev.target.name !== 'capacity' || state.phase === 'run') return;
+    leaveDebrief();
     state.designs[state.level].capacity = Number(ev.target.value);
     state.run = idleRun();
-    const strong = ev.target.closest('.part').querySelector('strong');
-    if (strong) strong.textContent = `${ev.target.value} tickets`;
-   
+    const out = ev.target.parentElement?.querySelector?.('output');
+    if (out) out.textContent = ev.target.value;
   });
   byId('levels').addEventListener('click', ev => {
     const b = ev.target.closest('button');
@@ -1484,6 +1456,7 @@ ${batchFacts(s)}
     const lv = LEVELS[state.level];
     const d = state.designs[state.level];
     if (lv.capacityUnlocked && d.rail && !Number.isFinite(d.capacity)) d.capacity = 30;
+    if (act === 'rail') renderTags(); // The rail size tag comes and goes with the rail.
     if (!lv.capacityUnlocked) d.capacity = Infinity;
     state.run = idleRun();
     renderPanel();
@@ -1495,6 +1468,7 @@ ${batchFacts(s)}
     state.navUnlocked = Math.max(state.navUnlocked, state.unlocked);
     state.pendingUnlock = null;
     fx.clear();
+    closeSheet();
     state.phase = 'design'; state.playing = false;
     state.run = idleRun();
     state.summary = null;
@@ -1512,6 +1486,7 @@ ${batchFacts(s)}
     if (!lv.intro || !hasPanel || (state.briefed.has(lv.id) && !again)) return;
     state.briefed.add(lv.id);
     state.briefings.push(lv.id);
+    closeSheet();
     briefing.open({ title: `Level ${lv.id} · ${lv.name}`, cards: lv.intro });
   }
 
@@ -1522,6 +1497,7 @@ ${batchFacts(s)}
     state.runGuess = replay ? null : state.guesses[state.level];
     state.guesses[state.level] = null; // Each rush gets a fresh call.
     sound.play('run');
+    closeSheet();
     fx.clear();
     state.run = makeRun(d);
     state.steam = [];
@@ -1556,6 +1532,7 @@ ${batchFacts(s)}
     hud.caption.innerHTML = `${clock(run.lastEventT)}  Rush over. ${run.served} served, ${run.rejected} turned away.`;
     canvas.setAttribute('aria-label', `Coffee shop after the rush: ${run.served} served, ${run.rejected} turned away.`);
     renderLevels(); renderPanel();
+    openSheet(); // Phones: the debrief comes up full screen.
     beginReveal(ok);
     if (onFinish) onFinish(state.summary);
   }
@@ -1659,6 +1636,8 @@ ${batchFacts(s)}
       sample(run);
       processEvents(run, onEvent);
       if (run.rail.length) trigger('queued', { ticket: run.rail[0], at: slotSpot(0), track: ticketSpot(run.rail[0]) });
+      const holder = run.baristas.find(b => b.holding);
+      if (holder) trigger('hold', { b: holder, ticket: holder.ticket });
     }
     updateVisuals(run, state.phase === 'run' && !state.playing && !moment ? 0 : dt);
     placeSpot();
@@ -1701,6 +1680,8 @@ ${batchFacts(s)}
     get xray() { return state.xray; },
     /** Level ids whose brief opened, in order (each opening counts). */
     get briefings() { return [...state.briefings]; },
+    /** How many times the ticket sheet opened (phones only). */
+    get sheetOpens() { return sheetOpens; },
     setSpeed(n) { state.speed = n; },
   };
 }

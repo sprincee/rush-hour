@@ -57,7 +57,7 @@ function fakePage({ only } = {}) {
     clickLevel: i => fire('levels', 'click', button({ level: String(i) })),
     act: name => fire('panel', 'click', button({ act: name })),
     guess: i => fire('panel', 'click', button({ act: 'guess', guess: String(i) })),
-    choosePolicy: value => fire('panel', 'change', { name: 'policy', value }),
+    choosePolicy: value => fire('shop-tags', 'change', { name: 'policy', value }),
     // Steppers: step all the way down, then up to the value.
     setEvery: n => {
       for (let i = 0; i < 6; i++) fire('panel', 'click', button({ act: 'every-minus' }));
@@ -306,7 +306,7 @@ test('your call and stars: a right guess and a cheap win earn all three, and the
 
   // 2.1 from the start (no rail): most customers walk out. Call it right.
   page.clickLevel(0);
-  assert.ok(page.elements.panel.innerHTML.includes('YOUR CALL'), 'the brief asks for a call');
+  assert.ok(page.elements.setup.innerHTML.includes('YOUR CALL'), 'the setup asks for a call');
   page.guess(2); // More than 20.
   page.act('run');
   page.runFrames(5000, () => debrief().includes('· DEBRIEF'));
@@ -396,4 +396,79 @@ test('lesson 1: the design controls are tags on the shop, and they lock during t
   tap('plus'); // A tag in the debrief starts the next design.
   assert.ok(page.elements.panel.innerHTML.includes('· BRIEF'));
   assert.match(tags.innerHTML, /<output aria-live="polite">3<\/output>/);
+});
+
+test('lesson 1 on a phone: the ticket is a sheet that opens by itself for the debrief', () => {
+  const page = fakePage();
+  window.matchMedia = q => ({ matches: q.includes('max-width'), addEventListener() {} });
+  const game = startGame({ config, lesson: lesson1 });
+  assert.equal(page.elements['ticket-btn'].hidden, false, 'the Ticket button shows on phones');
+  assert.ok(page.elements.setup.innerHTML.includes('setup-goals'), 'the goals sit above the setup');
+  page.act('async');
+  page.act('run');
+  assert.equal(game.sheetOpens, 0, 'not during the rush');
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.equal(game.sheetOpens, 1, 'the debrief opens full screen');
+  page.elements['ticket-btn'].listeners.click.forEach(fn => fn());
+  assert.equal(game.sheetOpens, 2, 'and the Ticket button opens it any time');
+});
+
+test('on desktop the ticket stays beside the shop', () => {
+  const page = fakePage(); // matchMedia matches nothing: a wide screen.
+  const game = startGame({ config, lesson: lesson2 });
+  assert.equal(page.elements['ticket-btn'].hidden, true, 'no Ticket button on desktop');
+  page.act('run');
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.equal(game.sheetOpens, 0);
+});
+
+test('every level of lessons 1-4 has a brief: three cards to open a lesson, then one', () => {
+  for (const lesson of [lesson1, lesson2, lesson3, lesson4]) {
+    lesson.LEVELS.forEach((lv, i) => {
+      assert.ok(Array.isArray(lv.intro), `${lv.id}: has a brief`);
+      assert.equal(lv.intro.length, i === 0 ? 3 : 1, `${lv.id}: card count`);
+      for (const c of lv.intro) assert.ok(c.stub && c.title && c.html.includes('<p>'), `${lv.id}: card parts`);
+    });
+    const ids = (lesson.MOMENTS || []).map(m => m.id);
+    assert.equal(new Set(ids).size, ids.length, 'moment ids are unique');
+  }
+});
+
+test('lesson 3 and 4 aha moments fire for the designs they explain', () => {
+  const titles = page => page.moments.map(html => html.match(/<\/span> ([^<]+)<\/p>/)[1]);
+  const play = (lesson, level, choose) => {
+    const page = fakePage();
+    startGame({ config, lesson });
+    playLevel(page, level, choose);
+    return titles(page);
+  };
+  assert.deepEqual(play(lesson3, 0, p => p.choosePolicy('fifo')), ['An order from the app', 'Walk-ins stuck in line']);
+  assert.deepEqual(play(lesson3, 0, p => p.choosePolicy('walkin')), ['An order from the app']);
+  assert.deepEqual(play(lesson3, 1), ['The app rail is starving']);
+  assert.deepEqual(play(lesson4, 0), ['One pitcher per latte']);
+  assert.deepEqual(play(lesson4, 0, p => p.act('batch')), ['Two lattes, one pitcher']);
+  assert.deepEqual(play(lesson4, 1, p => p.setBatchWait(3)), ['Waiting for a second latte']);
+  assert.deepEqual(play(lesson4, 2), ['App orders running late']);
+});
+
+test('every lesson shows its levers as tags on the shop', () => {
+  const expect = {
+    '2.1': ['baristas', 'rail'], '2.3': ['baristas', 'rail', 'capacity'],
+    '3.2': ['baristas', 'policy'], '4.2': ['crew', 'batchWait'], '4.3': ['baristas', 'policy', 'batch'],
+  };
+  for (const lesson of [lesson2, lesson3, lesson4]) {
+    const page = fakePage();
+    startGame({ config, lesson });
+    lesson.LEVELS.forEach((lv, i) => {
+      page.clickLevel(i);
+      const ctls = [...page.elements['shop-tags'].innerHTML.matchAll(/data-ctl="(\w+)"/g)].map(m => m[1]);
+      if (expect[lv.id]) assert.deepEqual(ctls, expect[lv.id], lv.id);
+      assert.ok(!page.elements.panel.innerHTML.includes('Design your shop</h3>'), `${lv.id}: no design section in the ticket`);
+    });
+  }
+  const page = fakePage();
+  startGame({ config, lesson: lesson3 });
+  page.clickLevel(1);
+  page.choosePolicy('weighted');
+  assert.ok(page.elements['shop-tags'].innerHTML.includes('data-ctl="every"'), 'fair share adds the every-Nth tag');
 });

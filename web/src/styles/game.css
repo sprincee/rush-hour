@@ -105,6 +105,17 @@
   .setup .btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); }
   .setup .btn:disabled { opacity: 0.45; cursor: not-allowed; }
   .setup-note { margin: 0; font-size: var(--t-sm); color: #FF8C82; }
+  .setup-goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: var(--t-sm); line-height: 1.4; color: var(--espresso-ink); }
+  .setup-goals .slo { margin-right: 6px; }
+
+  /* The ticket as a full-screen sheet on phones (lessons with controls on the shop). */
+  .ticket-sheet[open] { grid-template-rows: auto 1fr; }
+  .sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--gutter-right) var(--s-6) var(--gutter-left); }
+  .sheet-body .tickets { max-width: 560px; margin-inline: auto; }
+  .play > .side[hidden] { display: none; }
+  @media (min-width: 700px) {
+    .setup-goals, #ticket-btn { display: none; }
+  }
 
   .controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; justify-content: space-between; padding: 0 6px; }
   .group { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
@@ -229,6 +240,18 @@
   .shop-tag .stepper output { min-width: 30px; }
   .shop-tag .switch { height: 34px; min-width: 58px; }
   .sys-val { display: none; }
+  .tag-fixed { font: 600 var(--t-sm)/1 var(--font-ticket); }
+  .tag-range { display: inline-flex; align-items: center; gap: 8px; }
+  .tag-range input { width: 110px; accent-color: var(--crema); }
+  .tag-range output { min-width: 2ch; font: 600 var(--t-sm)/1 var(--font-ticket); font-variant-numeric: tabular-nums; }
+  .shop-tag select {
+    font: 600 var(--t-sm)/1 var(--font-body); height: 34px; padding: 0 8px; border-radius: var(--radius);
+    border: var(--edge); background: var(--milk); color: var(--ink); max-width: 170px;
+  }
+  .shop-tags.xray-on select { background: transparent; color: #EEF5FD; border-color: var(--xr-line); }
+  .shop-tags.xray-on select option { color: var(--ink); }
+  .shop-tags.xray-on .tag-fixed, .shop-tags.xray-on .tag-range output { color: #EEF5FD; }
+  .shop-tag[data-ctl="every"] .stepper output { min-width: 64px; }
   /* Under the X-ray: software words first, on the X-ray's dark glass. */
   .shop-tags.xray-on .shop-tag { background: var(--xr-bg); color: var(--xr-text); box-shadow: inset 0 0 0 1px var(--xr-line); }
   .shop-tags.xray-on .shop-word { display: none; }

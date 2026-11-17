@@ -100,3 +100,57 @@ LEVELS[1].predict = {
   actual: s => `longest app wait ${s.mobile.longestWaitMin.toFixed(1)} min`,
 };
 LEVELS[1].stretch = { label: 'Walk-ins wait 11 minutes or less', ok: s => s.walkin.longestWaitMin <= 11 };
+
+// ---------- The brief: learn first ----------
+// See lesson 1 for the format. Cards name the concept but never say which setting wins.
+const SOFT = '<p class="brief-soft"><span class="slo">IN SOFTWARE</span>';
+
+LEVELS[0].intro = [
+  {
+    stub: 'The situation', title: 'The app just launched',
+    html: `<p>Some customers now order ahead in the app. Their tickets print on a second printer, onto their own rail, and they walk in about ten minutes later to collect.</p>
+      <p>The customers who walked in are standing at the counter, watching the baristas.</p>`,
+  },
+  {
+    stub: 'The idea', title: 'Not all work is equally urgent',
+    html: `<p>With two rails, every free barista has to choose: which ticket next? That choice is a <strong>priority</strong> rule.</p>
+      <p>Oldest first is fair. Walk-ins first serves the people standing in front of you. App first gets orders ready before their owners arrive. Each one makes somebody wait.</p>
+      ${SOFT}A <b>priority queue</b> lets workers take the most important waiting job first. A common way to build one is a queue per priority, like <code>line:walkin</code> and <code>line:mobile</code> in Redis, with workers checking the important one first.</p>`,
+  },
+  {
+    stub: 'Your job', title: 'Two promises',
+    html: `<p>Walk-ins wait <strong>15 minutes</strong> or less. App orders are ready within <strong>30</strong>. You have three baristas and $60.</p>
+      <p>Pick the rule baristas use to choose the next ticket, and during the rush, watch both rails.</p>`,
+  },
+];
+
+LEVELS[1].intro = [
+  {
+    stub: "What's new", title: 'The app takes off',
+    html: `<p>A long, steady rush: 54 customers over half an hour, and more of them use the app. Same promises: walk-ins <strong>15 minutes</strong>, app orders <strong>30</strong>.</p>
+      <p>Strict priority has a catch. If important work keeps arriving, the rest can wait almost forever. That's called <strong>starvation</strong>. A <strong>fair share</strong> rule gives every rail a slice of the baristas: mostly walk-ins, but every Nth drink comes from the app.</p>
+      ${SOFT}This is weighted fair queuing. Kubernetes uses it too: its API Priority and Fairness feature keeps one noisy client from locking everyone else out.</p>`,
+  },
+];
+
+// ---------- Aha moments ----------
+// Freeze frames (see lesson 2 for the format). `when` narrows a moment to a design.
+export const MOMENTS = [
+  {
+    id: 'app-order', on: 'appOrder', level: '3.1', spot: 'appPrinter', title: 'An order from the app',
+    text: ({ c, item }) => `Customer ${c.id} ordered a ${item} from their phone. The ticket printed on the app printer, and they'll walk in about ten minutes from now.`,
+    soft: 'A second kind of request, in its own <b>queue</b>. Now every free worker has to choose which queue to take from: that\'s a <b>priority</b> rule.',
+  },
+  {
+    id: 'walkins-wait', on: 'goalRisk', level: '3.1', goal: 0, spot: 'rail', when: ({ d }) => d.policy !== 'walkin',
+    title: 'Walk-ins stuck in line',
+    text: ({ run }) => `${run.rail.length} walk-in ticket${run.rail.length === 1 ? ' is' : 's are'} waiting while baristas make app orders for people who haven't arrived yet.`,
+    soft: 'With this rule, the person standing at the counter is no more important than an order from a car. A <b>priority</b> rule lets the most urgent work go first.',
+  },
+  {
+    id: 'starving', on: 'goalRisk', level: '3.2', goal: 1, spot: 'appRail', when: ({ d }) => d.policy === 'walkin',
+    title: 'The app rail is starving',
+    text: ({ run }) => `${run.mobileRail.length} app ticket${run.mobileRail.length === 1 ? ' is' : 's are'} waiting, but walk-ins keep coming, and baristas always take a walk-in first.`,
+    soft: '<b>Starvation</b>: with strict priority, low-priority work can wait almost forever while important work keeps arriving.',
+  },
+];

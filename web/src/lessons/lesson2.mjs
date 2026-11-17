@@ -137,3 +137,44 @@ LEVELS[2].predict = {
   actual: s => `${s.rejected} turned away`,
 };
 LEVELS[2].stretch = { label: 'Turn away 20 or fewer', ok: s => s.rejected <= 20 };
+
+// ---------- The brief: learn first ----------
+// See lesson 1 for the format. Cards name the concept but never say which setting wins.
+const SOFT = '<p class="brief-soft"><span class="slo">IN SOFTWARE</span>';
+
+LEVELS[0].intro = [
+  {
+    stub: 'The situation', title: 'Fifty commuters',
+    html: `<p>Fifty commuters will walk in over the next ten minutes, and you have two baristas.</p>
+      <p>Right now there's nowhere for an order to wait. The cashier only takes an order if a barista can start it on the spot. Anyone who arrives while both baristas are busy walks back out.</p>`,
+  },
+  {
+    stub: 'The idea', title: 'A queue',
+    html: `<p>A <strong>queue</strong> lets you take work now and do it later. In the shop it's the ticket rail: the cashier prints a ticket and clips it to the rail, and baristas take tickets from the rail whenever they're free.</p>
+      <p>Without one, an order that arrives while everyone is busy is simply lost, even though a barista would be free a minute later.</p>
+      ${SOFT}The register is an API server. With a queue it answers <b>202 Accepted</b> and adds a message to the queue, such as Redis Streams. Without one, a request that finds every worker busy gets a <b>503</b>.</p>`,
+  },
+  {
+    stub: 'Your job', title: 'Nobody walks out',
+    html: `<p>Serve all <strong>50 customers</strong> within a <strong>$40</strong> budget. Each barista costs $18 for the rush, and the ticket rail costs $2.</p>
+      <p>During the rush, watch what happens to the customers who arrive while both baristas are busy.</p>`,
+  },
+];
+
+LEVELS[1].intro = [
+  {
+    stub: "What's new", title: 'Too long a wait',
+    html: `<p>The rail saved everyone, but the last customers waited close to an hour. Today your manager wants every drink out within <strong>40 minutes</strong> of walking in, and gave you a <strong>$60</strong> budget.</p>
+      <p>A queue holds work. It doesn't do it any faster. How fast the line moves is <strong>throughput</strong>: how many drinks your baristas finish per minute. Your wait is roughly the number of tickets ahead of you divided by the throughput.</p>
+      ${SOFT}Adding more workers to share the load is called horizontal scaling. Lesson 5 does it automatically.</p>`,
+  },
+];
+
+LEVELS[2].intro = [
+  {
+    stub: "What's new", title: 'Know when to say no',
+    html: `<p>Waiting 30 minutes for a latte is worse than going somewhere else. Today nobody should wait more than <strong>20 minutes</strong>, and you can turn away <strong>25 customers</strong> or fewer. When the rail is full, the cashier apologizes and the customer leaves right away.</p>
+      <p>A <strong>bounded queue</strong> has a limit. Too small and you turn away too many people. Too big and the last ticket waits too long. You choose how many tickets the rail holds.</p>
+      ${SOFT}A full queue answers <b>503 Service Unavailable</b> or <b>429 Too Many Requests</b>, so the client knows to try later. Turning work away on purpose to protect everyone else is the start of backpressure, lesson 7.</p>`,
+  },
+];

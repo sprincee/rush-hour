@@ -15,6 +15,7 @@
       <div class="controls">
         <div class="phase" id="phase" aria-label="Level progress"></div>
         <div class="group">
+          <button class="ghost" id="ticket-btn" type="button" hidden>Ticket</button>
           <button class="ghost" id="mute" type="button" aria-pressed="false">Sound on</button>
           <button class="ghost" id="pause" type="button" hidden>Pause</button>
           <div class="seg" role="radiogroup" aria-label="Speed">
@@ -42,6 +43,14 @@
       <div class="tickets"><div class="ticket panel" id="panel"></div></div>
     </details>
   </div>
+
+  <dialog class="start ticket-sheet" id="ticket-sheet" aria-label="Level ticket">
+    <div class="start-top">
+      <span class="stub">Level ticket</span>
+      <button type="button" class="start-close" data-close aria-label="Back to the shop">✕</button>
+    </div>
+    <div class="sheet-body"></div>
+  </dialog>
 
   <dialog class="start briefing" id="briefing" aria-labelledby="briefing-label">
     <div class="start-top">

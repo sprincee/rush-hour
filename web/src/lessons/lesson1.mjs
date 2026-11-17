@@ -41,9 +41,6 @@ export const LEVELS = [
   },
 ];
 
-// Design controls sit on the shop itself as tags; the ticket is the grader.
-export const CONTROLS_ON_SHOP = true;
-
 export const LOCKED = [
   { name: 'Second register', sys: 'Load balancer', lesson: 'Later' },
   { name: 'Mobile ordering', sys: 'Priority queue', lesson: 'Lesson 3' },

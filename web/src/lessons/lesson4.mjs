@@ -119,3 +119,70 @@ LEVELS[2].predict = {
   actual: s => `walk-ins ${s.walkin.longestWaitMin.toFixed(1)} min, app ${s.mobile.longestWaitMin.toFixed(1)} min`,
 };
 LEVELS[2].stretch = solveIn(3);
+
+// ---------- The brief: learn first ----------
+// See lesson 1 for the format. Cards name the concept but never say which setting wins.
+const SOFT = '<p class="brief-soft"><span class="slo">IN SOFTWARE</span>';
+
+LEVELS[0].intro = [
+  {
+    stub: 'The situation', title: 'A latte morning',
+    html: `<p>28 customers in 15 minutes, and most of them want lattes. You can only afford two baristas.</p>
+      <p>Every latte needs steamed milk, and steaming takes a big share of each drink's time.</p>`,
+  },
+  {
+    stub: 'The idea', title: 'Steam for two',
+    html: `<p>Behind a real counter, when two lattes are waiting, a barista steams milk for both in one pitcher. Two lattes take <strong>1.25 times</strong> as long as one.</p>
+      <p>That's <strong>batching</strong>: doing several jobs together so they share the setup work. Cappuccinos can't share a pitcher, and drip coffee needs no milk at all.</p>
+      ${SOFT}Databases insert rows in bulk, and queues send messages in batches. The overhead, like a network round trip or a disk write, is paid once per batch instead of once per job.</p>`,
+  },
+  {
+    stub: 'Your job', title: 'Nobody waits more than 20 minutes',
+    html: `<p>Nobody should wait more than <strong>20 minutes</strong>, with a <strong>$40</strong> budget.</p>
+      <p>During the rush, watch the pitchers on the counter. A big pitcher with ×2 is two lattes at once.</p>`,
+  },
+];
+
+LEVELS[1].intro = [
+  {
+    stub: "What's new", title: 'A quiet half hour',
+    html: `<p>16 customers in half an hour, mostly lattes, and two baristas. Every pitcher wastes a little milk, so your manager wants <strong>9 pitchers</strong> or fewer, and nobody waiting more than <strong>8 minutes</strong>.</p>
+      <p>Lattes rarely arrive together now, so a batch only happens if a barista holds a lone latte and waits for a second order. How long to wait is the <strong>batch window</strong>. Too short and you barely batch. Too long and the first customer waits for a partner who may never come.</p>
+      ${SOFT}Kafka calls this <code>linger.ms</code>: how long to wait for more messages before sending a batch. Services that charge per request make waiting worth real money.</p>`,
+  },
+];
+
+LEVELS[2].intro = [
+  {
+    stub: "What's new", title: 'The app rush',
+    html: `<p>52 customers over half an hour, a third of them ordering ahead, mostly lattes. The shop now promises app orders are ready by the time the customer walks in, about <strong>10 minutes</strong>. Walk-ins still wait <strong>15</strong> or less.</p>
+      <p>You know the ticket rules from lesson 3, and batching from this lesson. When a shop is overloaded, a priority rule only chooses <strong>who</strong> waits. To make everyone faster, the bar has to do less work.</p>
+      ${SOFT}Real systems combine both: fair scheduling so no kind of traffic waits forever, and batching or caching (lesson 8) to cut the work itself.</p>`,
+  },
+];
+
+// ---------- Aha moments ----------
+// Freeze frames (see lesson 2 for the format). `when` narrows a moment to a design.
+export const MOMENTS = [
+  {
+    id: 'one-pitcher', on: 'goalRisk', level: '4.1', goal: 0, spot: 'bar', when: ({ d }) => !d.batch,
+    title: 'One pitcher per latte',
+    text: ({ run }) => `${run.steams} pitchers steamed so far, one for every latte, and ${run.rail.length} ticket${run.rail.length === 1 ? ' is' : 's are'} waiting.`,
+    soft: 'Every latte pays the setup cost, steaming the milk, on its own. <b>Batching</b> pays it once for several jobs.',
+  },
+  {
+    id: 'first-batch', on: 'batchDone', level: '4.1', spot: 'bar', title: 'Two lattes, one pitcher',
+    text: ({ ticket, partner }) => `Customers ${ticket.id} and ${partner.id} both got their lattes from one pitcher: 1.25 times the work, two drinks.`,
+    soft: 'A <b>batch</b> of two. The setup work is done once and shared, so each latte takes less bar time.',
+  },
+  {
+    id: 'holding', on: 'hold', level: '4.2', spot: 'bar', title: 'Waiting for a second latte',
+    text: ({ ticket, d }) => `A barista is holding customer ${ticket.id}'s latte, hoping another latte order comes in within ${d.batchWait / 60} minute${d.batchWait === 60 ? '' : 's'}.`,
+    soft: 'That\'s the <b>batch window</b>: wait a little to fill the batch, or go now with a batch of one.',
+  },
+  {
+    id: 'app-late', on: 'goalRisk', level: '4.3', goal: 1, spot: 'appRail', title: 'App orders running late',
+    text: ({ run }) => `${run.mobileRail.length} app ticket${run.mobileRail.length === 1 ? ' is' : 's are'} waiting, and their customers are already on their way.`,
+    soft: 'When the bar can\'t keep up, a priority rule only decides <b>who</b> waits. To help everyone, the bar has to do less work.',
+  },
+];
