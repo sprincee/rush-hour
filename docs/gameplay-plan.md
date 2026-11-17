@@ -21,11 +21,13 @@ Ranked by value to the player:
 8. **Stars built 2026-11-16, in every level; saving them waits for accounts.** **Saved progress and three stars per level:** goals met, under budget, and a stretch goal.
 
 Smaller cleanups:
-- Done 2026-11-16: collapse the four locked-part cards on every brief to one line ("Coming later").
+- Done 2026-11-16: collapse the four locked-part cards on every brief to one line. Removed entirely 2026-11-17 (owner: players find later lessons by progressing).
 - Done 2026-11-16: make jargon (503, utilization, latency) tap-to-define.
 
 Polish built 2026-11-16: sounds of the shop during the rush, effects over the shop, and every input reacting (see DESIGN_RH.md, Motion and Sound).
 
-Still to build: #5 (queue chart in the debrief, with a ghost of the last run), freeze frames for lessons 1, 3 and 4, and optionally a "real cluster" line in the debrief from the recordings.
+**The loop (2026-11-17, owner's idea): learn → play → aha → next level.** Each level opens with a brief dialog that teaches the idea; freeze frames become the aha moments; the next level's brief builds on the last. Built for lesson 1 (1.1 three cards, 1.2 one card, four aha moments). Next: the owner plays lesson 1, then write briefs and moments for lessons 2-4, showing the copy first.
+
+Dropped 2026-11-17: #5 and the queue-depth chart itself (owner: confusing for players). Still to build: freeze frames for lessons 1, 3 and 4, and optionally a "real cluster" line in the debrief from the recordings.
 
 Suggested start: items 1, 2 and 4. The owner also has their own UI ideas to bring; hear those first.

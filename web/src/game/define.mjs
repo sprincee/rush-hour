@@ -30,8 +30,10 @@ export function setUpDefine() {
       pop.id = 'define';
       pop.setAttribute('role', 'note');
       pop.hidden = true;
-      doc.body.append(pop);
     }
+    // A modal dialog sits above the page, so a note for a term inside one goes inside it.
+    const host = btn.closest('dialog') || doc.body;
+    if (pop.parentNode !== host) host.append(pop);
     pop.innerHTML = `<p class="define-title"></p><p class="define-body"></p>`;
     pop.querySelector('.define-title').textContent = t.title;
     pop.querySelector('.define-body').textContent = t.def;

@@ -59,10 +59,52 @@
   @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(92 211 227 / 0.55); } 50% { box-shadow: 0 0 0 7px rgb(92 211 227 / 0); } }
   @media (prefers-reduced-motion: reduce) { .monitor.nudge .monitor-screen { animation: none; } }
 
-  .key { display: none; flex-wrap: wrap; gap: 6px 16px; padding: 0 6px; font: 500 0.78rem/1.3 var(--font-ticket); color: var(--xr-text); }
-  .key.show { display: flex; }
-  .key span { display: inline-flex; align-items: center; gap: 6px; }
-  .key i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  /* The X-ray key: a "?" fixed in the page corner opens a small card. */
+  .help-btn {
+    position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid var(--xr-line); background: var(--xr-bg); color: var(--xr-line);
+    font: 700 1.1rem/1 var(--font-ticket); cursor: pointer; box-shadow: 0 10px 22px -10px rgb(0 0 0 / 0.7);
+  }
+  .help-btn[aria-expanded="true"] { background: var(--xr-line); color: var(--xr-bg); }
+  .key-pop {
+    position: fixed; right: 16px; bottom: 70px; z-index: 40; width: min(300px, calc(100vw - 32px));
+    padding: var(--s-4); border-radius: var(--radius); background: var(--xr-bg); color: var(--xr-text);
+    box-shadow: 0 18px 36px -16px rgb(0 0 0 / 0.75), inset 0 0 0 1px rgb(92 211 227 / 0.35);
+  }
+  .key-pop[hidden] { display: none; }
+  .key-pop p { margin: 0; }
+  .key-title { font: 600 var(--t-xs)/1.2 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.08em; color: var(--xr-line); margin-bottom: var(--s-3) !important; }
+  .key-list { list-style: none; margin: 0 0 var(--s-3); padding: 0; display: grid; gap: 7px; font: 500 0.8rem/1.3 var(--font-ticket); }
+  .key-list li { display: flex; align-items: center; gap: 8px; }
+  .key-list i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .key-note { font-size: var(--t-xs); line-height: 1.45; color: var(--xr-text); opacity: 0.85; }
+  .key-note + .key-note { margin-top: 6px !important; }
+
+  /* Setup under the shop (lessons with controls on the shop): your call, cost, and Run.
+     Only while designing. Same parts as the ticket, on the shop's dark frame. */
+  .setup { display: grid; gap: var(--s-3); padding: 2px 6px 4px; }
+  .setup[hidden] { display: none; }
+  .setup .call { margin: 0; background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.18); }
+  .setup .call-q { margin: 0; font: 700 0.98rem/1.35 var(--font-display); color: var(--espresso-ink); }
+  .setup .opt { background: transparent; color: var(--espresso-ink); border-color: rgb(255 255 255 / 0.28); }
+  .setup .opt:hover { border-color: #F2C48A; }
+  .setup .opt[aria-pressed="true"] { background: var(--ticket); color: var(--ink); border-color: var(--ticket); }
+  .setup-run { display: flex; align-items: center; gap: var(--s-4); }
+  .setup .budget { flex: 1; margin: 0; }
+  .setup .budget .row { color: var(--espresso-muted); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+  .setup .budget .row .cost-num { color: var(--espresso-ink); }
+  .setup .bar { background: rgb(255 255 255 / 0.14); }
+  .setup .bar i { background: #F2C48A; }
+  .setup .bar.over i { background: var(--bad); }
+  .setup .btn {
+    font: 700 var(--t-md)/1 var(--font-display); border-radius: var(--radius); padding: 13px 18px; border: 0; cursor: pointer;
+    background: var(--crema); color: var(--crema-ink); white-space: nowrap;
+    transition: transform 90ms var(--ease), background-color 150ms var(--ease);
+  }
+  .setup .btn:hover:not(:disabled) { background: #8E450F; }
+  .setup .btn:active:not(:disabled) { transform: translateY(1px) scale(0.97); }
+  .setup .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .setup-note { margin: 0; font-size: var(--t-sm); color: #FF8C82; }
 
   .controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; justify-content: space-between; padding: 0 6px; }
   .group { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
@@ -83,33 +125,27 @@
   .stats dd { margin: 2px 0 0; font: 800 1.7rem/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
   .caption { margin: 0; padding: 0 6px 6px; min-height: 2.9em; font: 500 0.82rem/1.45 var(--font-ticket); color: var(--espresso-muted); }
   .caption b { color: var(--xr-line); font-weight: 600; }
+  .caption:empty { display: none; }
 
   /* ---------- The shop and the level ticket ----------
      Phones: stacked, the ticket folds up under the shop. Desktop: side by side,
      and the ticket folds into a slim tab so the shop gets the room. */
   .play { display: grid; gap: var(--s-4); align-items: start; }
-  .side, .drawer { min-width: 0; }
-  .side > summary, .drawer > summary { list-style: none; cursor: pointer; }
-  .side > summary::-webkit-details-marker, .drawer > summary::-webkit-details-marker { display: none; }
-  .side-tab, .drawer-tab {
+  .side { min-width: 0; }
+  .side > summary { list-style: none; cursor: pointer; }
+  .side > summary::-webkit-details-marker { display: none; }
+  .side-tab {
     display: flex; justify-content: space-between; align-items: center; gap: var(--s-3);
     min-height: 48px; padding: 10px var(--s-4); border-radius: var(--radius);
     background: var(--ink); color: var(--ticket);
     font: 600 var(--t-xs)/1.2 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.08em;
   }
-  .side-tab:hover, .drawer-tab:hover { background: #3D2B22; }
+  .side-tab:hover { background: #3D2B22; }
   .side[open] > .side-tab { margin-bottom: var(--s-3); }
-  .side-tab-hint::after, .drawer-hint::after { content: "Show ▾"; color: var(--crema-tint); }
-  .side[open] .side-tab-hint::after, .drawer[open] .drawer-hint::after { content: "Hide ▴"; }
+  .side-tab-hint::after { content: "Show ▾"; color: var(--crema-tint); }
+  .side[open] .side-tab-hint::after { content: "Hide ▴"; }
   .panel { padding: var(--s-5) var(--s-4); }
 
-  .drawer-tab { background: var(--ticket); color: var(--ink); border: var(--edge); }
-  .drawer-tab:hover { background: var(--ticket); border-color: var(--ink-muted); }
-  .drawer-tab .stub { color: var(--ink-muted); }
-  .drawer-title { display: block; margin-top: 4px; font: 800 1rem/1.2 var(--font-display); text-transform: none; letter-spacing: -0.01em; }
-  .drawer-hint::after { color: var(--crema); }
-  .drawer[open] > .drawer-tab { margin-bottom: var(--s-3); }
-  .drawer .chart-card { padding: var(--s-5) var(--s-4); }
 
   .panel h2 { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: var(--s-2); }
   .panel h3 { font-size: 1.05rem; font-weight: 800; margin: var(--s-5) 0 var(--s-2); }
@@ -146,9 +182,6 @@
   .choice input { margin-top: 4px; accent-color: var(--crema); }
   .choice .desc { display: block; margin: 2px 0 0; }
   .every { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
-  .coming { margin: var(--s-3) 0 0; font-size: var(--t-sm); color: var(--ink-muted); }
-  .coming-label { font: 600 0.66rem/1.3 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.07em; margin-right: 4px; }
-  .coming span[title] { border-bottom: 1px dotted var(--counter); cursor: help; }
 
   /* Stars: three per level. Hollow until earned. */
   .stars { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -178,6 +211,67 @@
   .panel .call-result { padding: var(--s-3); border-radius: var(--radius); background: var(--milk); font-size: 0.95rem; }
   .call-result.ok { box-shadow: inset 3px 0 0 var(--ok); }
   .call-result.bad { box-shadow: inset 3px 0 0 var(--counter); }
+
+  /* Design tags: the controls, on the shop. Phones: a row under the shop window.
+     Wider screens: each tag sits on the part of the shop it changes. */
+  .shop-tags { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 6px; }
+  .shop-tags:empty, .shop-tags[hidden] { display: none; }
+  .shop-tag {
+    display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-radius: var(--radius);
+    background: var(--ticket); color: var(--ink); box-shadow: 0 10px 20px -12px rgb(0 0 0 / 0.8);
+    transition: opacity 200ms var(--ease), background-color 200ms var(--ease), color 200ms var(--ease);
+  }
+  .tag-name { display: grid; gap: 1px; }
+  .shop-word { font: 800 0.95rem/1.1 var(--font-display); }
+  .sys-word { font: 600 0.62rem/1.2 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.06em; color: var(--crema); }
+  .tag-price { font: 600 0.66rem/1.2 var(--font-ticket); color: var(--ink-muted); white-space: nowrap; }
+  .shop-tag .stepper button { width: 34px; height: 34px; }
+  .shop-tag .stepper output { min-width: 30px; }
+  .shop-tag .switch { height: 34px; min-width: 58px; }
+  .sys-val { display: none; }
+  /* Under the X-ray: software words first, on the X-ray's dark glass. */
+  .shop-tags.xray-on .shop-tag { background: var(--xr-bg); color: var(--xr-text); box-shadow: inset 0 0 0 1px var(--xr-line); }
+  .shop-tags.xray-on .shop-word { display: none; }
+  .shop-tags.xray-on .sys-word { font: 800 0.92rem/1.1 var(--font-display); text-transform: none; letter-spacing: 0; color: #EEF5FD; }
+  .shop-tags.xray-on .tag-price { color: var(--xr-text); }
+  .shop-tags.xray-on .stepper { background: transparent; border-color: var(--xr-line); }
+  .shop-tags.xray-on .stepper button, .shop-tags.xray-on .stepper output { color: #EEF5FD; }
+  .shop-tags.xray-on .switch { background: transparent; color: var(--xr-text); border-color: var(--xr-line); }
+  .shop-tags.xray-on .switch[aria-pressed="true"] { background: var(--xr-line); color: var(--xr-bg); }
+  .shop-tags.xray-on .shop-val { display: none; }
+  .shop-tags.xray-on .sys-val { display: inline; }
+  .design-hint { margin-top: var(--s-3); }
+  @media (min-width: 700px) {
+    .shop-tags {
+      position: absolute; left: 10px; right: 10px; top: 10px; aspect-ratio: 1000 / 560; z-index: 2;
+      display: block; padding: 0; pointer-events: none;
+    }
+    .shop-tag { position: absolute; left: var(--x); top: var(--y); transform: translate(-50%, -50%); pointer-events: auto; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* First visit to a level: the tags pulse twice, so players see the shop is interactive. */
+    .shop-tags.hello .shop-tag { animation: tag-hello 900ms var(--ease) 2; }
+    @keyframes tag-hello { 0%, 100% { box-shadow: 0 10px 20px -12px rgb(0 0 0 / 0.8), 0 0 0 0 rgb(242 196 138 / 0.7); } 60% { box-shadow: 0 10px 20px -12px rgb(0 0 0 / 0.8), 0 0 0 9px rgb(242 196 138 / 0); } }
+    .shop-tag.bump .stepper output, .shop-tag.bump .switch { animation: bump 240ms cubic-bezier(0.3, 1.7, 0.5, 1); }
+  }
+
+  /* The level brief: a dialog of cards, built on the start flow's slideshow (site.css). */
+  .briefing .slide { align-content: safe center; }
+  .briefing .slide h2 { font-size: clamp(1.8rem, 5.5vw, 2.5rem); }
+  .brief-body { display: grid; gap: var(--s-3); font-size: 1.06rem; line-height: 1.55; color: var(--ink-muted); }
+  .brief-body p, .brief-body ul { margin: 0; }
+  .brief-body ul { padding-left: 1.2em; display: grid; gap: 4px; }
+  .brief-body strong, .brief-body b { color: var(--ink); }
+  .brief-body .brief-soft { padding: var(--s-3) var(--s-4); border-radius: var(--radius); background: var(--crema-tint); color: var(--ink); font-size: 0.98rem; }
+  .brief-soft .slo { display: table; margin: 0 0 6px; }
+  .briefing[data-count="1"] .start-bottom { display: none; }
+  @media (min-width: 640px) { .briefing { height: min(620px, calc(100% - 48px)); } }
+  .reread {
+    display: inline-flex; align-items: center; gap: 6px; margin: 0 0 var(--s-2); padding: 0; border: 0; background: none; cursor: pointer;
+    font: 600 var(--t-xs)/1.2 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.08em; color: var(--crema);
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .reread::before { content: "↺"; text-decoration: none; }
 
   /* Tap-to-define: a term looks like text with a dotted underline; tapping opens a note. */
   .term { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: help; text-decoration: underline dotted 1.5px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
@@ -374,41 +468,41 @@
     @keyframes jolt { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(-2px, 3px); } 65% { transform: translate(2px, -1px); } }
   }
 
-  /* The chart */
-  .chart-card h2 { font-size: var(--t-lg); }
-  .chart-head { display: grid; gap: 4px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--t-sm); color: var(--ink-muted); }
-  .legend span { display: inline-flex; gap: 6px; align-items: center; }
-  .sw { width: 16px; height: 0; border-top: 2px solid var(--walkin); display: inline-block; }
-  .sw.app { border-top: 2px dashed var(--app); }
-  .sw.limit { border-top: 2px dashed var(--ink-muted); }
-  .chart svg { width: 100%; height: auto; display: block; touch-action: none; margin-top: var(--s-2); }
-  .chart .grid { stroke: var(--counter); stroke-width: 1; }
-  .chart .tick { fill: var(--ink-muted); font: 500 11px var(--font-ticket); }
-  .chart .axis { fill: var(--ink-muted); font: 600 12px var(--font-body); }
-  .chart .s1 { fill: none; stroke: var(--walkin); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
-  .chart .s2 { fill: none; stroke: var(--app); stroke-width: 2.25; stroke-dasharray: 6 4; stroke-linejoin: round; stroke-linecap: round; }
-  .chart .lim { stroke: var(--ink-muted); stroke-width: 1.5; stroke-dasharray: 5 4; }
-  .chart .lbl { fill: var(--ink); font: 600 12px var(--font-body); }
-  .chart .ann { fill: var(--ink-muted); font: 600 13px var(--font-body); }
-  .chart .hover { stroke: var(--ink-muted); stroke-width: 1; }
-  .chart .tip { fill: var(--ticket); stroke: var(--counter); }
-  .chart .tiptext { fill: var(--ink); font: 600 11.5px var(--font-body); }
 
-  /* Phones are the base; these add room. */
-  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Phones are the base; these add room. On phones the frame around the shop is quiet:
+     one row of small stats, no software sub-labels (the X-ray key has them), no level
+     progress (the ticket shows it), and a tighter key and caption. */
+  .stage { padding: 6px; gap: 8px; border-radius: 14px; }
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .stats div { padding-top: 6px; }
+  .stats dt { font-size: 0.56rem; letter-spacing: 0.05em; }
+  .stats dt em { display: none; }
+  .stats dd { font-size: 1.15rem; }
+  .phase { display: none; }
+  .stage .ghost { padding: 7px 10px; font-size: 0.78rem; }
+  .seg label { padding: 7px 9px; font-size: 0.74rem; }
+  .caption { font-size: 0.74rem; min-height: 2.6em; padding-bottom: 4px; }
   .chip { padding: 5px 7px; font-size: 0.8rem; }
   .chip small { display: none; }
   .monitor-screen span { padding: 6px 7px; font-size: 0.62rem; }
   .controls { justify-content: flex-start; }
 
   @media (min-width: 600px) {
-    .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .stage { padding: 10px; gap: 10px; border-radius: 18px; }
+    .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
+    .stats div { padding-top: var(--s-2); }
+    .stats dt { font-size: 0.66rem; letter-spacing: 0.07em; }
+    .stats dt em { display: inline; }
+    .stats dd { font-size: 1.7rem; }
+    .phase { display: flex; }
+    .stage .ghost { padding: 9px 14px; font-size: var(--t-sm); }
+    .seg label { padding: 8px 11px; font-size: 0.8rem; }
+    .caption { font-size: 0.82rem; min-height: 2.9em; padding-bottom: 6px; }
     .chip { padding: 7px 10px; font-size: 1rem; }
     .chip small { display: block; }
     .monitor-screen span { padding: 7px 9px; font-size: 0.72rem; }
     .controls { justify-content: space-between; }
-    .panel, .drawer .chart-card { padding: var(--s-6); }
+    .panel { padding: var(--s-6); }
   }
 
   /* Desktop: the ticket sits beside the shop and stays in view while you scroll. */

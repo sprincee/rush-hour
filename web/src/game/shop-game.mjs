@@ -1,12 +1,13 @@
 // The shop game: design a system, run the rush, and X-ray the shop to see the system behind it.
 // Lesson-specific levels, goals and debrief text come from a lesson module (web/src/lessons/).
 // The simulation itself is the tested engine in ../engine.mjs.
-import { createRun, processEvents, sample, completeRun, summarize, POLICIES } from '../engine.mjs';
+import { createRun, processEvents, sample, summarize, POLICIES } from '../engine.mjs';
 import { menuById } from '../arrivals.mjs';
 import { createSound } from './sound.mjs';
 import { liveGoal, shortLabel, STATUS_WORDS } from './live-goals.mjs';
 import { createEffects } from './effects.mjs';
 import { setUpDefine } from './define.mjs';
+import { createBriefing } from './briefing.mjs';
 import { starsFor, starLabels, outcome } from '../lessons/common.mjs';
 
 /**
@@ -26,6 +27,7 @@ export function startGame({ config, lesson, next, onFinish }) {
   const sound = createSound({ enabled: hasPanel });
   const fx = createEffects();
   const define = setUpDefine();
+  const briefing = hasPanel ? createBriefing({ link: define.link }) : { open: () => false };
 
   const { LEVELS, LOCKED, COST, designCost } = lesson;
   const menu = menuById(config);
@@ -88,6 +90,7 @@ export function startGame({ config, lesson, next, onFinish }) {
     rushes: LEVELS.map(() => 0), shownCost: LEVELS.map(() => null),
     runGuess: null, runStars: null, newStars: null,
     navUnlocked: 0, pendingUnlock: null, // The level nav shows a new level once the debrief has printed.
+    briefed: new Set(), briefings: [], // Levels whose brief has opened this visit, and every opening, in order.
   };
 
   function makeRun(d) {
@@ -120,6 +123,7 @@ export function startGame({ config, lesson, next, onFinish }) {
     const run = state.run;
     const t = run.t;
     if (kind === 'accepted') sound.play('ticket');
+    if (kind === 'accepted' && c.channel !== 'mobile') trigger('accepted', { c, item: menu[c.item].label.toLowerCase() });
     if (kind === 'accepted' && c.channel === 'mobile') {
       run.pops.push({ text: '202 · app order', x: APP_PRINTER.x, y: 104, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()} in the app. <b>→ The request skipped the register and went straight to the app queue (line:mobile).</b>`;
@@ -753,77 +757,6 @@ export function startGame({ config, lesson, next, onFinish }) {
     state.xa = REDUCED ? target : state.xa + (target - state.xa) * clamp(dt * 8 || 0.2, 0, 1);
   }
 
-  // ---------- Chart ----------
-  const chartEl = byId('chart');
-  const CH = { L: 46, R: 500, T: 18, B: 240, yMax: 50 };
-  let xMax = 60;
-  const sx = v => CH.L + (v / xMax) * (CH.R - CH.L);
-  const sy = v => CH.B - (Math.min(v, CH.yMax) / CH.yMax) * (CH.B - CH.T);
-
-  function valueAt(series, m) {
-    let best = null;
-    for (const p of series) { if (p[0] <= m + 0.001) best = p; else break; }
-    return best;
-  }
-
-  function renderChart() {
-    const run = state.run;
-    const d = run.design;
-    let s = '';
-    for (let v = 0; v <= CH.yMax; v += 10) {
-      s += `<line class="grid" x1="${CH.L}" x2="${CH.R}" y1="${sy(v)}" y2="${sy(v)}"/>`;
-      s += `<text class="tick" x="${CH.L - 8}" y="${sy(v) + 4}" text-anchor="end">${v}</text>`;
-    }
-    const step = xMax > 90 ? 30 : 15;
-    for (let v = 0; v <= xMax; v += step) s += `<text class="tick" x="${sx(v)}" y="${CH.B + 18}" text-anchor="middle">${v}</text>`;
-    s += `<text class="axis" x="${(CH.L + CH.R) / 2}" y="${CH.B + 38}" text-anchor="middle">Shop minutes after 8:05</text>`;
-    if (d.rail && Number.isFinite(d.capacity)) {
-      s += `<line class="lim" x1="${CH.L}" x2="${CH.R}" y1="${sy(d.capacity)}" y2="${sy(d.capacity)}"/>`;
-      s += `<text class="lbl" x="${CH.R + 8}" y="${sy(d.capacity) + 4}">Limit ${d.capacity}</text>`;
-    }
-    const series = run.series.filter(p => p[0] <= xMax);
-    if (!run.idle && series.length > 1) {
-      s += `<polyline class="s1" points="${series.map(p => `${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' ')}"/>`;
-      const end = series[series.length - 1];
-      s += `<text class="lbl" x="${Math.min(sx(end[0]) + 8, CH.R + 6)}" y="${sy(end[1]) - 8}">${run.hasApp ? 'Walk-in rail' : 'This rush'}</text>`;
-      if (run.hasApp) {
-        s += `<polyline class="s2" points="${series.map(p => `${sx(p[0]).toFixed(1)},${sy(p[2]).toFixed(1)}`).join(' ')}"/>`;
-        const peak = series.reduce((best, p) => (p[2] > best[2] ? p : best), series[0]);
-        s += `<text class="lbl" x="${Math.min(sx(peak[0]) + 8, CH.R - 40)}" y="${sy(peak[2]) - 8}">App rail</text>`;
-      }
-    }
-    if (!d.rail && !run.idle && run.t > 0) {
-      s += `<text class="ann" x="${(CH.L + CH.R) / 2}" y="${sy(30)}" text-anchor="middle">No queue, so the depth stays at zero.</text>`;
-      s += `<text class="ann" x="${(CH.L + CH.R) / 2}" y="${sy(30) + 18}" text-anchor="middle">Extra requests are rejected instead.</text>`;
-    } else if (run.idle) {
-      s += `<text class="ann" x="${(CH.L + CH.R) / 2}" y="${sy(28)}" text-anchor="middle">Run the rush to draw the queue.</text>`;
-    }
-    if (state.hover !== null && !run.idle) {
-      const m = state.hover;
-      const a = valueAt(series, m);
-      s += `<line class="hover" x1="${sx(m)}" x2="${sx(m)}" y1="${CH.T}" y2="${CH.B}"/>`;
-      const lines = [`${Math.round(m)} min (${clock(m * 60)})`];
-      if (a) lines.push(run.hasApp ? `${a[1]} walk-in, ${a[2]} app waiting` : `${a[1]} waiting in the queue`);
-      const bw = 190, bh = 14 + lines.length * 17;
-      const bx = sx(m) + 12 + bw > 596 ? sx(m) - 12 - bw : sx(m) + 12;
-      s += `<rect class="tip" x="${bx}" y="${CH.T + 4}" width="${bw}" height="${bh}" rx="8"/>`;
-      lines.forEach((ln, i) => { s += `<text class="tiptext" x="${bx + 10}" y="${CH.T + 22 + i * 17}">${ln}</text>`; });
-    }
-    chartEl.innerHTML = s;
-    byId('legend').innerHTML =
-      (run.hasApp
-        ? `<span><i class="sw" aria-hidden="true"></i>Walk-in rail</span><span><i class="sw app" aria-hidden="true"></i>App rail</span>`
-        : `<span><i class="sw" aria-hidden="true"></i>Queue depth this rush</span>`) +
-      (d.rail && Number.isFinite(d.capacity) ? `<span><i class="sw limit" aria-hidden="true"></i>Rail limit</span>` : '');
-  }
-  chartEl.addEventListener('pointermove', ev => {
-    const box = chartEl.getBoundingClientRect();
-    const x = ((ev.clientX - box.left) / box.width) * 600;
-    state.hover = x < CH.L || x > CH.R ? null : clamp(((x - CH.L) / (CH.R - CH.L)) * xMax, 0, xMax);
-    renderChart();
-  });
-  chartEl.addEventListener('pointerleave', () => { state.hover = null; renderChart(); });
-
   // ---------- Panels ----------
   const panel = byId('panel');
 
@@ -988,16 +921,18 @@ export function startGame({ config, lesson, next, onFinish }) {
     panel.innerHTML = `
       <div class="ticket-head"><span>LEVEL ${lv.id} · BRIEF</span><span>BUDGET $${lv.budget}</span></div>
       <h2>${lv.name}</h2>
-      <p class="quiet">${lv.brief}</p>
+      ${lv.intro
+        ? `<button type="button" class="reread" data-act="brief">Reread the brief</button>`
+        : `<p class="quiet">${lv.brief}</p>`}
       <h3>Goals</h3>
       ${goalsHTML(lv, null)}
       ${starListHTML(lv, state.stars[state.level])}
-      <h3>Design your shop</h3>
+      ${onShop ? '' : `<h3>Design your shop</h3>
       <div class="build">
         ${baristaPart(lv, d)}
         ${lv.controls ? controlParts(lv, d) : lv.policies ? policyParts(lv, d) : railParts(lv, d)}
-      </div>
-      <p class="coming"><span class="coming-label">Coming later</span> ${LOCKED.map(l => `<span title="${l.sys} · ${l.lesson}">${l.name}</span>`).join(' · ')}</p>
+      </div>`}
+      ${onShop ? '' : `
       <div class="budget">
         <div class="row"><span>Cost of your design</span><span><span class="cost-num">$${cost}</span> of $${lv.budget}</span></div>
         <div class="bar ${over ? 'over' : ''}"><i style="width:${pct(cost, lv)}"></i></div>
@@ -1007,7 +942,18 @@ export function startGame({ config, lesson, next, onFinish }) {
       <div class="actions">
         <button type="button" class="btn run-btn" data-act="run" ${over ? 'disabled' : ''}>Run the rush</button>
         <span class="note">${guessed ? "The X-ray shows the system you're building." : 'Make your call for the ★ Called it star.'}</span>
-      </div>`;
+      </div>`}`;
+    // Lessons with the controls on the shop: your call, the cost, and Run sit under the shop.
+    if (onShop) setupEl.innerHTML = `
+      ${callHTML(lv, d)}
+      <div class="setup-run">
+        <div class="budget">
+          <div class="row"><span>Cost</span><span><span class="cost-num">$${cost}</span> of $${lv.budget}</span></div>
+          <div class="bar ${over ? 'over' : ''}"><i style="width:${pct(cost, lv)}"></i></div>
+        </div>
+        <button type="button" class="btn run-btn" data-act="run" ${over ? 'disabled' : ''}>Run the rush</button>
+      </div>
+      ${over ? '<p class="setup-note">Over budget. Remove something to run the rush.</p>' : ''}`;
     reactDesign(lv, cost, over);
   }
 
@@ -1022,23 +968,25 @@ export function startGame({ config, lesson, next, onFinish }) {
     state.shownCost[state.level] = cost;
     if (!panel.querySelector) return;
     const restart = (el, cls) => { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+    // The first match across the ticket, the setup under the shop, and the shop tags.
+    const q = sel => panel.querySelector(sel) || setupEl.querySelector?.(sel) || tagsEl.querySelector?.(sel);
     if (bumpAct) {
-      const el = bumpAct === 'policy' ? panel.querySelector('input[name="policy"]:checked')?.closest('.choice')
-        : bumpAct === 'guess' ? panel.querySelector('.opt[aria-pressed="true"]')
-        : panel.querySelector(`[data-act="${bumpAct}"]`)?.closest('.part');
+      const el = bumpAct === 'policy' ? q('input[name="policy"]:checked')?.closest('.choice')
+        : bumpAct === 'guess' ? q('.opt[aria-pressed="true"]')
+        : q(`[data-act="${bumpAct}"]`)?.closest('.part, .shop-tag');
       restart(el, 'bump');
       bumpAct = null;
     }
     if (from === null || from === cost || REDUCED) return;
-    const num = panel.querySelector('.cost-num');
-    const bar = panel.querySelector('.budget .bar i');
+    const num = q('.cost-num');
+    const bar = q('.budget .bar i');
     if (num) { num.textContent = `$${from}`; roll = { el: num, from, to: cost, start: null }; }
     if (bar) {
       bar.style.transition = 'none'; bar.style.width = pct(from, lv);
       void bar.offsetWidth;
       bar.style.transition = ''; bar.style.width = pct(cost, lv);
     }
-    if (over && from <= lv.budget) restart(panel.querySelector('.budget'), 'jolt');
+    if (over && from <= lv.budget) restart(q('.budget'), 'jolt');
   }
 
   function tickRoll(now) {
@@ -1133,7 +1081,7 @@ ${batchFacts(s)}
         ${callResultHTML(lv, d, s)}
         <p class="what">${lv.explain(d, s)}</p>
         <div class="actions">
-          ${hasNext ? `<button type="button" class="btn" data-act="next">Next level</button>` : ''}
+          ${hasNext ? `<button type="button" class="btn" data-act="next">Next: ${LEVELS[state.level + 1].id} ${LEVELS[state.level + 1].name}</button>` : ''}
           <button type="button" class="btn ${hasNext ? 'line' : ''}" data-act="change">Change your design</button>
           <button type="button" class="btn line" data-act="replay">Watch it again</button>
         </div>
@@ -1147,14 +1095,14 @@ ${batchFacts(s)}
           ${sloNote}
           ${factsHTML(s, d)}
         </details>
-        <details class="fold">
+        ${lv.intro ? '' : `<details class="fold">
           <summary><span>In software terms</span><span class="fold-sub">${lv.concept.term}</span></summary>
           <div class="concept">
             <h3>${lv.concept.term}</h3>
             <p>${lv.concept.body}</p>
             <p class="quiet">${lv.concept.real}</p>
           </div>
-        </details>
+        </details>`}
       </div>`;
   }
 
@@ -1254,14 +1202,23 @@ ${batchFacts(s)}
   // A ticket, wherever it's drawn right now (it slides from the printer to its slot).
   const ticketSpot = t => () => ({ x: t.x ?? RAIL.x0, y: (t.y ?? RAIL.y) + 14 });
 
+  // Named places a moment can point the spotlight at, instead of what triggered it.
+  const SPOTS = {
+    cashier: () => ({ x: CASHIER_X, y: 214 }),
+    register: () => ({ x: REGISTER_SPOT.x + 40, y: REGISTER_SPOT.y - 40 }),
+    rail: () => railSpot(),
+  };
+
   function trigger(on, info = {}) {
     if (moment || state.phase !== 'run' || !MOMENTS.length) return;
     const lv = LEVELS[state.level];
+    const mode = state.run.design.sync ? 'sync' : 'async';
     const m = MOMENTS.find(x => x.on === on && !seenMoments.has(x.id)
       && (x.level === undefined || x.level === lv.id)
+      && (x.mode === undefined || x.mode === mode)
       && (x.why === undefined || x.why === info.why)
       && (x.goal === undefined || x.goal === info.goal));
-    if (m) freeze(m, info);
+    if (m) freeze(m, m.spot ? { ...info, at: SPOTS[m.spot](), track: SPOTS[m.spot] } : info);
   }
 
   function freeze(m, info) {
@@ -1280,7 +1237,7 @@ ${batchFacts(s)}
     placeSpot();
     spot.hidden = false;
     momentCard.innerHTML = `
-      <p class="moment-title"><span aria-hidden="true">⏸</span> ${m.title}</p>
+      <p class="moment-title"><span aria-hidden="true">⏸</span> ${typeof m.title === 'function' ? m.title(ctx) : m.title}</p>
       <p class="moment-text">${m.text(ctx)}</p>
       <p class="moment-soft"><span class="slo">IN SOFTWARE</span>${m.soft}</p>
       <button type="button" class="moment-go">Got it <span class="key" aria-hidden="true">Space</span></button>`;
@@ -1390,6 +1347,56 @@ ${batchFacts(s)}
       <p class="note">The caption under the shop tells you what each event means in software terms.</p>`;
   }
 
+  // ---------- Design tags on the shop ----------
+  // For lessons with CONTROLS_ON_SHOP: each control is a small tag on the part of the shop it
+  // changes (an HTML layer, so the shop drawing doesn't change). On phones they sit in a row
+  // under the shop. They lock during the rush, and show software words under the X-ray.
+  const tagsEl = byId('shop-tags');
+  const setupEl = byId('setup');
+  const onShop = Boolean(lesson.CONTROLS_ON_SHOP) && hasPanel;
+  const TAG_AT = { baristas: { x: 585, y: 362 }, async: { x: 232, y: 362 } };
+  const greeted = new Set(); // Levels whose tags have pulsed hello.
+
+  function tagHTML(key, d, locked) {
+    const dis = locked ? 'disabled' : '';
+    const at = TAG_AT[key];
+    const style = `style="--x:${(at.x / W * 100).toFixed(1)}%;--y:${(at.y / H * 100).toFixed(1)}%"`;
+    const name = (shop, sys) => `<span class="tag-name"><span class="shop-word">${shop}</span><span class="sys-word">${sys}</span></span>`;
+    if (key === 'baristas') return `
+      <div class="shop-tag" data-ctl="baristas" ${style}>
+        ${name('Baristas', 'Workers')}
+        <span class="stepper">
+          <button type="button" data-act="minus" aria-label="Remove a barista" ${locked || d.baristas <= 1 ? 'disabled' : ''}>−</button>
+          <output aria-live="polite">${d.baristas}</output>
+          <button type="button" data-act="plus" aria-label="Add a barista" ${locked || d.baristas >= 4 ? 'disabled' : ''}>+</button>
+        </span>
+        <span class="tag-price">$${COST.barista} each</span>
+      </div>`;
+    if (key === 'async') return `
+      <div class="shop-tag" data-ctl="async" ${style}>
+        ${name('Call names', 'Async API')}
+        <button type="button" class="switch" data-act="async" aria-pressed="${!d.sync}" aria-label="Call names" ${dis}>
+          <span class="shop-val">${d.sync ? 'Off' : 'On'}</span><span class="sys-val">${d.sync ? 'Sync' : 'Async'}</span>
+        </button>
+        <span class="tag-price">Free</span>
+      </div>`;
+    return '';
+  }
+
+  function renderTags() {
+    if (!onShop) return;
+    const lv = LEVELS[state.level];
+    const d = state.designs[state.level];
+    // Out of the way during the rush; back for the debrief, where a tap starts the next design.
+    tagsEl.hidden = state.phase === 'run';
+    // The setup under the shop (your call, cost, Run) is only there while designing.
+    setupEl.hidden = state.phase !== 'design';
+    if (state.phase !== 'design') setupEl.innerHTML = '';
+    tagsEl.innerHTML = (lv.controls || ['baristas']).filter(k => TAG_AT[k]).map(k => tagHTML(k, d, false)).join('');
+    tagsEl.classList.remove('hello');
+    if (state.phase === 'design' && !greeted.has(lv.id)) { greeted.add(lv.id); void tagsEl.offsetWidth; tagsEl.classList.add('hello'); }
+  }
+
   // The panel can sit in a collapsible <details> (the side ticket). Reopen it when a
   // new brief or the debrief arrives, so a player who folded it away still sees it.
   const panelHolder = panel.closest?.('details') ?? null;
@@ -1398,6 +1405,7 @@ ${batchFacts(s)}
   function renderPanel() {
     if (reveal && state.phase !== 'debrief') { reveal = null; panel.classList.remove('revealing', 'jolt'); }
     define.close();
+    renderTags();
     if (state.phase === 'design') renderDesign();
     else if (state.phase === 'run') renderRunning();
     else renderDebrief();
@@ -1411,6 +1419,25 @@ ${batchFacts(s)}
     if (reveal) { ev.preventDefault?.(); finishReveal(); return; } // Tap the receipt to skip the reveal.
     const b = ev.target.closest('button');
     if (!b || b.disabled) return;
+    doAct(b);
+  });
+  setupEl.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b || b.disabled || state.phase !== 'design') return;
+    doAct(b);
+  });
+  // The tags on the shop only work while designing.
+  tagsEl.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b || b.disabled || state.phase === 'run') return;
+    if (state.phase === 'debrief') { // Changing the design after a rush starts the next one.
+      if (reveal) finishReveal();
+      state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true);
+    }
+    doAct(b);
+  });
+
+  function doAct(b) {
     const d = state.designs[state.level];
     const act = b.dataset.act;
     if (act === 'minus') { d.baristas = Math.max(1, d.baristas - 1); designChanged(act); }
@@ -1428,10 +1455,11 @@ ${batchFacts(s)}
       sound.play('tick'); bumpAct = 'guess'; renderPanel();
     }
     else if (act === 'run') startRush();
-    else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); renderChart(); }
+    else if (act === 'brief') openBrief(true);
+    else if (act === 'change') { state.phase = 'design'; state.playing = false; state.run = idleRun(); setXray(true); renderPanel(); }
     else if (act === 'next') setLevel(state.level + 1);
     else if (act === 'replay') startRush({ replay: true });
-  });
+  }
   panel.addEventListener('change', ev => {
     if (ev.target.name !== 'policy') return;
     state.designs[state.level].policy = ev.target.value;
@@ -1443,7 +1471,7 @@ ${batchFacts(s)}
     state.run = idleRun();
     const strong = ev.target.closest('.part').querySelector('strong');
     if (strong) strong.textContent = `${ev.target.value} tickets`;
-    renderChart();
+   
   });
   byId('levels').addEventListener('click', ev => {
     const b = ev.target.closest('button');
@@ -1458,7 +1486,7 @@ ${batchFacts(s)}
     if (lv.capacityUnlocked && d.rail && !Number.isFinite(d.capacity)) d.capacity = 30;
     if (!lv.capacityUnlocked) d.capacity = Infinity;
     state.run = idleRun();
-    renderPanel(); renderChart();
+    renderPanel();
   }
 
   function setLevel(i) {
@@ -1473,8 +1501,18 @@ ${batchFacts(s)}
     stopLive();
     setXray(true);
     state.message = '';
-    hud.caption.innerHTML = 'Design your shop below. The X-ray shows the system you are building.';
-    renderLevels(); renderPanel(); renderChart();
+    hud.caption.innerHTML = onShop ? '' : 'Design your shop below. The X-ray shows the system you are building.';
+    renderLevels(); renderPanel();
+    openBrief();
+  }
+
+  /** The level's brief dialog: on the first visit to a level, or when asked again. */
+  function openBrief(again = false) {
+    const lv = LEVELS[state.level];
+    if (!lv.intro || !hasPanel || (state.briefed.has(lv.id) && !again)) return;
+    state.briefed.add(lv.id);
+    state.briefings.push(lv.id);
+    briefing.open({ title: `Level ${lv.id} · ${lv.name}`, cards: lv.intro });
   }
 
   /** replay: "Watch it again", which doesn't count as a new try or carry a prediction. */
@@ -1485,15 +1523,13 @@ ${batchFacts(s)}
     state.guesses[state.level] = null; // Each rush gets a fresh call.
     sound.play('run');
     fx.clear();
-    const preview = summarize(completeRun(d, { config, rush: LEVELS[state.level].rush }));
-    xMax = Math.max(60, Math.ceil(preview.endMin / 15) * 15);
     state.run = makeRun(d);
     state.steam = [];
     state.phase = 'run'; state.playing = true;
     if (!state.xrayUsed) setXray(false);
     lastCaption = '';
     hud.caption.innerHTML = 'The doors are open. Customers are walking in.';
-    renderPanel(); renderChart();
+    renderPanel();
     startLive();
   }
 
@@ -1519,7 +1555,7 @@ ${batchFacts(s)}
     state.phase = 'debrief';
     hud.caption.innerHTML = `${clock(run.lastEventT)}  Rush over. ${run.served} served, ${run.rejected} turned away.`;
     canvas.setAttribute('aria-label', `Coffee shop after the rush: ${run.served} served, ${run.rejected} turned away.`);
-    renderLevels(); renderPanel(); renderChart();
+    renderLevels(); renderPanel();
     beginReveal(ok);
     if (onFinish) onFinish(state.summary);
   }
@@ -1533,9 +1569,9 @@ ${batchFacts(s)}
       if (!REDUCED && sceneEl.classList) { sceneEl.classList.remove('sweep'); void sceneEl.offsetWidth; sceneEl.classList.add('sweep'); }
     }
     state.xray = on;
+    tagsEl.classList.toggle('xray-on', on);
     xrayBtn.setAttribute('aria-pressed', String(on));
     xrayBtn.setAttribute('aria-label', on ? 'Showing the X-ray. Switch back to the counter' : 'Showing the counter. Open the X-ray');
-    byId('key').classList.toggle('show', on);
     xrayBtn.classList.toggle('nudge', !on && state.phase === 'run' && !state.xrayUsed);
   }
   xrayBtn.addEventListener('click', () => { state.xrayUsed = true; setXray(!state.xray, true); });
@@ -1543,6 +1579,19 @@ ${batchFacts(s)}
     if (moment && (ev.key === ' ' || ev.key === 'Enter')) { ev.preventDefault?.(); resume(); return; }
     if ((ev.key === 'x' || ev.key === 'X') && !ev.target.closest('input, textarea')) { state.xrayUsed = true; setXray(!state.xray, true); }
   });
+  // The X-ray key: a "?" in the corner of the page opens it.
+  const helpBtn = byId('help');
+  const keyEl = byId('key');
+  function showKey(open) {
+    keyEl.hidden = !open;
+    helpBtn.setAttribute('aria-expanded', String(open));
+  }
+  helpBtn.addEventListener('click', () => showKey(keyEl.hidden));
+  document.addEventListener('click', ev => {
+    if (!keyEl.hidden && !ev.target.closest?.('#key, #help')) showKey(false);
+  });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !keyEl.hidden) { showKey(false); helpBtn.focus?.(); } });
+
   const muteBtn = byId('mute');
   function renderMute() {
     muteBtn.setAttribute('aria-pressed', String(sound.muted));
@@ -1558,7 +1607,7 @@ ${batchFacts(s)}
     rejected: byId('st-rejected'), wait: byId('st-wait'),
     queue: byId('st-queue'), caption: byId('caption'),
   };
-  let lastHud = 0, lastChart = 0, lastCaptionAt = 0, lastCaption = '';
+  let lastHud = 0, lastCaptionAt = 0, lastCaption = '';
   let shownServed = 0, shownRejected = 0, ambientOn = false;
   const bump = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
 
@@ -1597,7 +1646,6 @@ ${batchFacts(s)}
     if (state.phase === 'run' && run.message && run.message !== lastCaption && now - lastCaptionAt > 900) {
       hud.caption.innerHTML = run.message; lastCaption = run.message; lastCaptionAt = now;
     }
-    if (state.playing && now - lastChart > 160) { lastChart = now; renderChart(); }
   }
 
   // ---------- Main loop ----------
@@ -1651,6 +1699,8 @@ ${batchFacts(s)}
     },
     setXray(on) { setXray(on); },
     get xray() { return state.xray; },
+    /** Level ids whose brief opened, in order (each opening counts). */
+    get briefings() { return [...state.briefings]; },
     setSpeed(n) { state.speed = n; },
   };
 }

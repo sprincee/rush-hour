@@ -333,3 +333,67 @@ test('your call and stars: a right guess and a cheap win earn all three, and the
   page.runFrames(5000, () => debrief().includes('· DEBRIEF'));
   assert.ok(!debrief().includes('call-result'));
 });
+
+test('lesson 1: the brief opens once per level, and "Reread the brief" brings it back', () => {
+  const page = fakePage();
+  const game = startGame({ config, lesson: lesson1 });
+  assert.deepEqual(game.briefings, ['1.1'], 'the first level briefs on arrival');
+  assert.ok(page.elements.panel.innerHTML.includes('Reread the brief'));
+  assert.ok(!page.elements.panel.innerHTML.includes(lesson1.LEVELS[0].brief), 'the story lives in the brief, not the ticket');
+  page.clickLevel(0);
+  assert.deepEqual(game.briefings, ['1.1'], 'coming back to a level skips it');
+  page.act('brief');
+  assert.deepEqual(game.briefings, ['1.1', '1.1'], 'unless the player asks');
+  page.act('async');
+  page.act('run');
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.ok(page.elements.panel.innerHTML.includes('Next: 1.2 A fast answer'));
+  assert.ok(!page.elements.panel.innerHTML.includes('In software terms'), 'the concept is taught in the brief');
+  page.act('next');
+  assert.deepEqual(game.briefings, ['1.1', '1.1', '1.2']);
+  for (const lv of lesson1.LEVELS) {
+    assert.ok(lv.intro.length >= 1 && lv.intro.every(c => c.stub && c.title && c.html.includes('<p>')), `${lv.id}: cards`);
+  }
+});
+
+test('lesson 1 aha moments: sync and async in 1.1, response and processing time in 1.2', () => {
+  const titles = page => page.moments.map(html => html.match(/<\/span> ([^<]+)<\/p>/)[1]);
+  const play = (level, choose) => {
+    const page = fakePage();
+    startGame({ config, lesson: lesson1 });
+    playLevel(page, level, choose);
+    return titles(page);
+  };
+  assert.deepEqual(play(0), ['Two baristas, nothing to do']);
+  assert.deepEqual(play(0, p => p.act('async')), ["We'll call your name"]);
+  assert.deepEqual(play(1), ['Still waiting for an answer']);
+  assert.deepEqual(play(1, p => p.act('async')), ['Fast answer, slow drink']);
+});
+
+test('lesson 1: the design controls are tags on the shop, and they lock during the rush', () => {
+  const page = fakePage();
+  startGame({ config, lesson: lesson1 });
+  const tags = page.elements['shop-tags'];
+  const tap = act => tags.listeners.click.forEach(fn => fn({ target: { closest: () => ({ disabled: false, dataset: { act } }) } }));
+  assert.ok(tags.innerHTML.includes('data-act="plus"') && tags.innerHTML.includes('data-act="async"'), 'baristas and call names on the shop');
+  assert.ok(!page.elements.panel.innerHTML.includes('Design your shop</h3>'), 'the ticket has no design section');
+  tap('async');
+  assert.ok(tags.innerHTML.includes('aria-pressed="true"'), 'call names switched on from the shop');
+  tap('minus');
+  assert.match(tags.innerHTML, /<output aria-live="polite">2<\/output>/);
+  const setup = page.elements.setup;
+  assert.ok(setup.innerHTML.includes('$38</span> of $80') && setup.innerHTML.includes('data-act="run"'), 'cost and Run sit under the shop');
+  assert.ok(setup.innerHTML.includes('YOUR CALL') && !page.elements.panel.innerHTML.includes('YOUR CALL'), 'so does your call');
+  assert.ok(!page.elements.panel.innerHTML.includes('data-act="run"'), 'the ticket is the grader');
+  page.act('run');
+  assert.equal(tags.hidden, true, 'the tags step aside for the rush');
+  assert.equal(setup.hidden, true, 'and so does the setup');
+  tap('plus'); // Ignored mid-rush.
+  assert.match(tags.innerHTML, /<output aria-live="polite">2<\/output>/);
+  page.runFrames(5000, () => page.elements.panel.innerHTML.includes('· DEBRIEF'));
+  assert.ok(page.elements.panel.innerHTML.includes('Goals met'), 'two baristas with call names pass 1.1');
+  assert.equal(tags.hidden, false, 'and come back after it');
+  tap('plus'); // A tag in the debrief starts the next design.
+  assert.ok(page.elements.panel.innerHTML.includes('· BRIEF'));
+  assert.match(tags.innerHTML, /<output aria-live="polite">3<\/output>/);
+});

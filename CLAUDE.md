@@ -105,8 +105,7 @@ Kubernetes cluster (k3s)
   - **Effects layer** over the shop.
   - **Input reactions.**
 
-  The engine now reports `maxBusy`. 127 tests pass. `scripts/serve.py` serves `dist/` with no caching. Next:
-  - #5: a queue chart in the debrief, with a ghost of the last run.
+  The engine now reports `maxBusy`. Then (2026-11-17) the owner's new loop, **learn → play → aha → next level**: a brief dialog teaches each level's idea before designing (`intro` in the lesson file, `web/src/game/briefing.mjs`), freeze frames become the aha moments, and the ticket keeps only "Reread the brief". Lesson 1 also has its design controls as tags on the shop (`CONTROLS_ON_SHOP`; a row under the shop on phones), with your call, cost and Run in a setup area under the shop (hidden during the rush), so the ticket is just the grader; the queue-depth chart is gone; the X-ray key moved behind a "?" in the page corner; "Coming later" was removed from every ticket. Built for lesson 1 only, waiting for the owner to play it; then lessons 2-4 (copy first). 130 tests pass. 127 tests pass. `scripts/serve.py` serves `dist/` with no caching. Next:
   - Freeze frames for lessons 1, 3 and 4.
   - Then roadmap step 4.
 - Known items: `CPUThrottlingHigh` goes pending on low-limit containers (never fired, and rushes weren't slowed; revisit the limits). `-KillBarista` may not trigger a rescue, since the barista can sometimes finish its drink before it's killed. Before AWS: add a NetworkPolicy for Redis, build images for ARM as well, measure memory on a single node, and trim the metrics kept from the kubelet and API server.

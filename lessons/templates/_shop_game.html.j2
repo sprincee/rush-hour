@@ -1,6 +1,6 @@
 {# The game on a lesson page. Element ids are what web/src/game/shop-game.mjs looks for.
    Layout: the shop and the level ticket side by side on desktop (the ticket folds into a
-   tab), stacked on phones. The queue-depth chart is a drawer that starts closed. #}
+   tab), stacked on phones. #}
 <section class="game wrap" aria-label="The coffee shop game">
   <nav aria-label="Levels">
     <ol class="levels" id="levels"></ol>
@@ -9,15 +9,9 @@
   <div class="play">
     <div class="stage">
       {% include "_shop_stage.html.j2" %}
+      <div class="shop-tags" id="shop-tags" aria-label="Design your shop"></div>
+      <div class="setup" id="setup" hidden></div>
       <div class="moment" id="moment" role="status" hidden></div>
-      <div class="key" id="key" aria-label="X-ray key">
-        <span><i style="background:#f2b233"></i>Request arriving at the API</span>
-        <span><i style="background:#5aa2f0"></i>Waiting in the queue</span>
-        <span><i style="background:#f07b3f"></i>Being worked on</span>
-        <span><i style="background:#2fbf86"></i>Done: 200 OK</span>
-        <span><i style="background:#ef5b55"></i>Rejected: 503</span>
-        <span id="key-shape" hidden>Circles are walk-ins, diamonds are app orders</span>
-      </div>
       <div class="controls">
         <div class="phase" id="phase" aria-label="Level progress"></div>
         <div class="group">
@@ -49,17 +43,30 @@
     </details>
   </div>
 
-  <details class="drawer">
-    <summary class="drawer-tab">
-      <span><span class="stub">Queue depth</span> <span class="drawer-title">Tickets on the rail, over the rush</span></span>
-      <span class="drawer-hint" aria-hidden="true"></span>
-    </summary>
-    <div class="tickets"><div class="ticket chart chart-card">
-      <div class="chart-head">
-        <p class="note" style="margin:0">In software terms: messages waiting in the queue.</p>
-        <div class="legend" id="legend"></div>
-      </div>
-      <svg id="chart" viewBox="0 0 600 286" role="img" aria-label="Line chart of queue depth over shop time."></svg>
-    </div></div>
-  </details>
+  <dialog class="start briefing" id="briefing" aria-labelledby="briefing-label">
+    <div class="start-top">
+      <span class="stub briefing-label" id="briefing-label">Level brief</span>
+      <button type="button" class="start-close" data-close aria-label="Close the brief">✕</button>
+    </div>
+    <div class="slides" tabindex="0" aria-roledescription="carousel"></div>
+    <div class="start-bottom">
+      <button type="button" class="btn-quiet slide-back" data-back aria-label="Previous card">←</button>
+      <div class="slide-dots" aria-hidden="true"></div>
+      <button type="button" class="btn-primary slide-next" data-next>Next <span class="arrow">→</span></button>
+    </div>
+  </dialog>
+
+  <button type="button" class="help-btn" id="help" aria-expanded="false" aria-controls="key" aria-label="X-ray key">?</button>
+  <div class="key-pop" id="key" role="dialog" aria-label="X-ray key" hidden>
+    <p class="key-title">X-ray key</p>
+    <ul class="key-list">
+      <li><i style="background:#f2b233"></i>Request arriving at the API</li>
+      <li><i style="background:#5aa2f0"></i>Waiting in the queue</li>
+      <li><i style="background:#f07b3f"></i>Being worked on</li>
+      <li><i style="background:#2fbf86"></i>Done: 200 OK</li>
+      <li><i style="background:#ef5b55"></i>Rejected: 503</li>
+    </ul>
+    <p class="key-note" id="key-shape" hidden>Circles are walk-ins, diamonds are app orders.</p>
+    <p class="key-note">Press the monitor on the shop, or X, to flip between the counter and the X-ray.</p>
+  </div>
 </section>
