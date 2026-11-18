@@ -12,6 +12,8 @@ kubeconfig*
 *.tfstate.*
 *.tfvars
 *.tfplan
+backend.hcl
+k8s/.overlay-aws/
 crash.log
 
 # Python

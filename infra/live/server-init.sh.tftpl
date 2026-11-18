@@ -1,0 +1,94 @@
+#!/bin/bash
+# First boot of the Rush Hour server (EC2 user data, runs once as root).
+# Terraform fills in: k3s_version, region, registry, max_session_hours.
+set -euo pipefail
+exec > >(tee -a /var/log/rush-hour-init.log) 2>&1
+echo "rush-hour init: starting $(date -Is)"
+
+# ---------- ECR login, refreshed on every boot ----------
+# k3s reads registry logins from registries.yaml when it starts. An ECR login lasts
+# 12 hours and the server never runs more than ${max_session_hours}, so logging in at
+# each boot covers the whole session. The server's IAM role allows read-only pulls.
+cat > /usr/local/bin/rush-hour-ecr-login <<'SCRIPT'
+#!/bin/bash
+set -euo pipefail
+token=$(aws ecr get-login-password --region ${region})
+umask 077
+mkdir -p /etc/rancher/k3s
+cat > /etc/rancher/k3s/registries.yaml <<YAML
+configs:
+  "${registry}":
+    auth:
+      username: AWS
+      password: "$token"
+YAML
+SCRIPT
+chmod 700 /usr/local/bin/rush-hour-ecr-login
+
+cat > /etc/systemd/system/rush-hour-ecr-login.service <<'UNIT'
+[Unit]
+Description=Rush Hour: log k3s in to ECR before it starts
+Wants=network-online.target
+After=network-online.target
+Before=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rush-hour-ecr-login
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+# ---------- Guard 1: power off after max_session_hours ----------
+cat > /etc/systemd/system/rush-hour-autostop.service <<'UNIT'
+[Unit]
+Description=Rush Hour: power off at the end of the session cap
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl poweroff
+UNIT
+
+cat > /etc/systemd/system/rush-hour-autostop.timer <<'UNIT'
+[Unit]
+Description=Rush Hour: power off ${max_session_hours} hours after boot
+
+[Timer]
+OnBootSec=${max_session_hours}h
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now rush-hour-autostop.timer
+systemctl enable rush-hour-ecr-login.service
+/usr/local/bin/rush-hour-ecr-login
+
+# ---------- k3s ----------
+# No Traefik or service load balancer: nothing public reaches this cluster. Secrets
+# are encrypted at rest, and only root can read the admin kubeconfig.
+mkdir -p /etc/rancher/k3s
+cat > /etc/rancher/k3s/config.yaml <<'YAML'
+disable:
+  - traefik
+  - servicelb
+write-kubeconfig-mode: "0600"
+secrets-encryption: true
+YAML
+
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='${k3s_version}' sh -
+
+# Start the ECR login before k3s on every later boot too.
+mkdir -p /etc/systemd/system/k3s.service.d
+cat > /etc/systemd/system/k3s.service.d/ecr.conf <<'UNIT'
+[Unit]
+Wants=rush-hour-ecr-login.service
+After=rush-hour-ecr-login.service
+UNIT
+systemctl daemon-reload
+
+echo "rush-hour init: done $(date -Is)"

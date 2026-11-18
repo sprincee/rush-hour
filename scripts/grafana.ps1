@@ -3,11 +3,15 @@
     Opens a private tunnel to Grafana and copies the admin password to the clipboard.
 .EXAMPLE
     .\scripts\grafana.ps1
+.EXAMPLE
+    .\scripts\grafana.ps1 -Cluster rush-hour-aws    # the AWS server, after aws-up.ps1
 #>
 [CmdletBinding()]
-param()
+param(
+    [ValidateSet('rush-hour', 'rush-hour-single', 'rush-hour-aws')][string]$Cluster = 'rush-hour'
+)
 
-$Context = 'k3d-rush-hour'
+$Context = if ($Cluster -eq 'rush-hour-aws') { $Cluster } else { "k3d-$Cluster" }
 
 $encoded = kubectl --context $Context --request-timeout=20s get secret grafana-admin -n monitoring -o 'jsonpath={.data.admin-password}'
 if ($LASTEXITCODE -ne 0 -or -not $encoded) {

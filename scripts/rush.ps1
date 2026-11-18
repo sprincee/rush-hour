@@ -37,12 +37,13 @@ param(
     [switch]$Sync,
     [switch]$KillBarista,
     [switch]$Record,
-    [ValidateSet('rush-hour', 'rush-hour-single')][string]$Cluster = 'rush-hour'
+    # rush-hour-aws: the AWS server, after .\scripts\aws-up.ps1.
+    [ValidateSet('rush-hour', 'rush-hour-single', 'rush-hour-aws')][string]$Cluster = 'rush-hour'
 )
 
 $ErrorActionPreference = 'Continue'
 
-$Context = "k3d-$Cluster"
+$Context = if ($Cluster -eq 'rush-hour-aws') { $Cluster } else { "k3d-$Cluster" }
 $Root = Split-Path -Parent $PSScriptRoot
 $Namespace = 'rush-load'
 $KillAfterSeconds = 25

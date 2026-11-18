@@ -55,6 +55,44 @@ $0, so **don't create `infra/live` before this is done.**
 When the other projects are gone from the account, the budget can drop its tag filter
 and count the whole account.
 
+### 5. Create the main stack (after step 4)
+
+```powershell
+cd infra\live
+copy backend.hcl.example backend.hcl    # bucket = infra/bootstrap's state_bucket output
+terraform init -backend-config=backend.hcl
+terraform plan -out live.tfplan
+terraform apply live.tfplan
+```
+
+Applying creates the server **running**: its first boot installs k3s. It stops itself
+(see below), or run `.\scripts\aws-down.ps1` when it's done.
+
+## Day to day
+
+All scripts default to the `rush-hour` profile; sign in first with `aws login --profile rush-hour`.
+
+| Do | Command | Notes |
+|---|---|---|
+| Publish the site | `.\scripts\deploy-site.ps1` | Builds `dist/`, uploads it, clears CloudFront's cache |
+| Push new shop images | `.\scripts\push-images.ps1` | ARM builds, tagged with the git commit |
+| Start a demo | `.\scripts\aws-up.ps1` | Starts the server, adds the `rush-hour-aws` kubectl context, opens the SSM tunnel, deploys the newest images |
+| Send a rush | `.\scripts\rush.ps1 -Cluster rush-hour-aws` | Same options as locally |
+| Grafana | `.\scripts\grafana.ps1 -Cluster rush-hour-aws` | Through the same tunnel |
+| A shell on the server | `aws ssm start-session --target <server_id>` | `terraform output server_id`; no SSH |
+| Stop | `.\scripts\aws-down.ps1` | Closes the tunnel, stops the server |
+
+**Auto-stop.** The server stops itself two ways, so a forgotten demo costs cents:
+1. It powers off 4 hours after booting (a systemd timer on the server).
+2. CloudWatch stops it after 60 minutes under 10% CPU.
+
+Stopped, it costs only its disk (~$1.60 a month). `aws-up.ps1` starts it again.
+
+**Security.** Nothing on the internet can connect to the server: its security group has
+no inbound rules, and you reach it through SSM (shell and tunnels), signed in as
+`rush-hour-admin`. It allows outbound 80/443 only. Its IAM role can only use SSM and
+pull from ECR. IMDSv2 is required, the disk is encrypted, and k3s encrypts Secrets.
+
 ## Tear down
 
 `infra/live`: `terraform destroy`. The bootstrap stack stays (budgets are free, and the

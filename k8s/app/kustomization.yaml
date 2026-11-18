@@ -1,0 +1,13 @@
+# The shop, as one Kustomize base. Locally it runs the images up.ps1 builds
+# (rush-hour-<service>:dev). On AWS, scripts/aws-up.ps1 points the same manifests at
+# ECR with a small overlay it writes outside the repo (the registry name contains the
+# AWS account ID).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - redis.yaml
+  - networkpolicy.yaml
+  - register.yaml
+  - barista.yaml
+  - monitors.yaml
