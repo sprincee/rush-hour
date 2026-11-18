@@ -12,6 +12,38 @@ kubeScheduler:
 kubeProxy:
   enabled: false
 
+# Trim what Prometheus keeps from Kubernetes itself (measured 2026-11-17: 95k samples per
+# scrape, and the shop was only ~1.5k of them). The dashboard reads the shop's metrics,
+# Redis, and kube-state-metrics; container CPU and memory (cAdvisor) stay for alerts.
+kubelet:
+  serviceMonitor:
+    metricRelabelings:
+      # k3s runs the whole control plane in one process, so every node's kubelet port
+      # repeats the API server's and etcd's metrics. The apiserver job already has them.
+      - action: drop
+        sourceLabels: [__name__]
+        regex: (apiserver|apiextensions|aggregator|etcd|workqueue|scheduler)_.+
+      # The chart's own default: fewer buckets for storage operation timings.
+      - action: drop
+        sourceLabels: [__name__, le]
+        regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      # Keep the API server's counters and averages (_count, _sum, request totals), and drop
+      # its latency histograms: thousands of series that only the SLO rules below read.
+      - action: drop
+        sourceLabels: [__name__]
+        regex: (apiserver|apiextensions|aggregator|etcd|workqueue|scheduler)_.+_bucket
+defaultRules:
+  rules:
+    # These alert on the Kubernetes API server's own latency SLOs and need the histograms
+    # dropped above. The shop's SLOs are on the Rush Hour dashboard.
+    kubeApiserverAvailability: false
+    kubeApiserverBurnrate: false
+    kubeApiserverHistogram: false
+    kubeApiserverSlos: false
+
 prometheus:
   prometheusSpec:
     scrapeInterval: 15s

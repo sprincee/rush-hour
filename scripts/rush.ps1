@@ -36,12 +36,13 @@ param(
     [ValidateRange(0, 6)][int]$BatchWait,
     [switch]$Sync,
     [switch]$KillBarista,
-    [switch]$Record
+    [switch]$Record,
+    [ValidateSet('rush-hour', 'rush-hour-single')][string]$Cluster = 'rush-hour'
 )
 
 $ErrorActionPreference = 'Continue'
 
-$Context = 'k3d-rush-hour'
+$Context = "k3d-$Cluster"
 $Root = Split-Path -Parent $PSScriptRoot
 $Namespace = 'rush-load'
 $KillAfterSeconds = 25

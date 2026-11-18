@@ -1,0 +1,15 @@
+# A one-node Rush Hour cluster, shaped like the planned AWS server: k3s runs the control
+# plane and every Pod on the same machine. Used to measure memory before choosing a size.
+# Create:  .\scripts\up.ps1 -Single
+# Delete:  k3d cluster delete rush-hour-single
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: rush-hour-single
+servers: 1 # control plane and workloads together, like one EC2 instance
+agents: 0
+image: rancher/k3s:v1.35.5-k3s1 # same version as the main local cluster
+kubeAPI:
+  host: 127.0.0.1
+  hostIP: 127.0.0.1 # this laptop only
+  hostPort: "6446" # next to the main cluster's 6445, so both can run at once

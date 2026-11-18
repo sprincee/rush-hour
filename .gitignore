@@ -11,6 +11,7 @@ kubeconfig*
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfplan
 crash.log
 
 # Python

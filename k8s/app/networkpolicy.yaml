@@ -1,0 +1,33 @@
+# Who may talk to Redis (the line). Without this, any Pod in the cluster could read or
+# empty the queue. Once a NetworkPolicy selects a Pod, everything not listed here is
+# blocked. k3s enforces these with its built-in network policy controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+  namespace: rush-hour
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    # The register adds orders; baristas take them. Nobody else gets the queue.
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [register, barista]
+      ports:
+        - port: 6379
+          protocol: TCP
+    # Prometheus scrapes the exporter sidecar's metrics, and only those.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 9121
+          protocol: TCP

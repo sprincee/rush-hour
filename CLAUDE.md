@@ -40,10 +40,9 @@ v1 is all 12 lessons, built in groups A, B, C. Each lesson must work on its own,
 
 ## Proposed architecture (not final, decide each piece together)
 ```
-Lesson site (static, S3 + CloudFront)
-   -> "Send a rush" button -> Rush API (rate-limited, bounded)
-                                  -> in-cluster load generator (k6 Job, capped)
-Kubernetes cluster (k3s)
+Lesson site (static, S3 + CloudFront)      the game + recorded real runs; no live link to the cluster
+Kubernetes cluster (k3s, one EC2 server)   started by the owner for demos; off otherwise
+   rush       in-cluster load generator (k6 Job, capped), run by the owner's scripts
    register   order API (Python)             accepts orders
    line       Redis Streams                  the queue
    baristas   worker Deployment (Python)     simulated prep times; scales with the line
@@ -54,20 +53,19 @@ Kubernetes cluster (k3s)
 ### Decided
 - The line uses Redis Streams: built-in crash recovery, batched reads, and direct KEDA support.
 - The course is an interactive browser game built as one coffee shop with 12 levers, not 12 separate mini-games.
-- Learners play in a browser simulator, freely and with no waiting line. The cluster handles real runs and checks the simulator. Full design: `docs/design.md`.
-- Observability uses kube-prometheus-stack, trimmed for k3s (`k8s/monitoring/values.yaml`). Measured peak on 2026-11-03: about 1 GiB across all Pods during a rush, not counting k3s itself. Single-node memory is still unmeasured, and a t4g.small (2 GB) looks too tight.
-- Hosting: local only until launch; then one server running k3s that wakes on demand, planned as a t4g.medium (roughly $3-5/month). It shuts down when idle, with a cooldown and a daily limit on hours. Lessons show a recorded real run while it wakes, and the simulator never depends on it. Confirm prices, memory, and start-up time at step 4.
+- Learners play in a browser simulator, freely and with no waiting line. The cluster handles real runs and checks the simulator. Full design: `docs/design.md`. Lessons show real data as recorded runs (the calibration recordings), not live or embedded Grafana panels (2026-11-17).
+- Observability uses kube-prometheus-stack, trimmed for k3s (`k8s/monitoring/values.yaml`). Metrics from Kubernetes' own internals are trimmed (95k to 37k samples per scrape, 2026-11-17). Single node measured 2026-11-17 (`.\scripts\up.ps1 -Single`, the heaviest rush: lesson 4.3, 4 baristas, batching): 2.25 GiB idle, 2.45 GiB peak for k3s plus every Pod. k3s itself is about 0.9 GB, Grafana 0.4, Prometheus 0.16, the shop 0.2. A t4g.medium (4 GiB) fits with room for the OS; a t4g.small (2 GiB) does not.
+- Hosting (decided 2026-11-17): **players get the game plus recorded real runs only; live rushes are for the owner** (demos, interviews). The public site has no button that reaches the cluster, so there's no public Rush API, no wake-on-demand, and no rate limiting to build, and every player plays with no limits. The cluster is one EC2 server running k3s (planned t4g.medium, confirm size from the single-node measurement), started and stopped by the owner, with an auto-stop guard after a few idle hours. Terraform for all of it, and a runbook for start, stop, and teardown.
 - Lesson site: Python + Jinja2 (`lessons/build.py`) builds static pages into `dist/`. JavaScript only runs the game, as plain ES modules with no framework or build step.
 - Visual design: read `DESIGN_RH.md` before touching templates or CSS. The game canvas is frozen; everything around it follows that file, and the file gets updated as the design evolves.
 
 ### Open decisions
 - Autoscaling: CPU-based HPA vs queue-length scaling with KEDA (queue length is the better lesson: "more people in line, more baristas").
-- How lessons show live data: embedded public Grafana panels vs periodic snapshots.
 - Deployment: plain manifests/Helm first; GitOps (Argo CD) later.
 
 ## Safety and cost guardrails (non-negotiable)
-- The public never sends traffic directly to the cluster. The button triggers a server-side rush with a fixed size and duration.
-- Global cooldown between rushes, plus a per-IP rate limit on the button.
+- The public never sends traffic to the cluster. Players get the game and recorded runs; only the owner starts the server and runs rushes (see Hosting under Decided).
+- If a public "run it for real" button is ever added: a global cooldown between rushes, a per-IP rate limit, and a fixed rush size and duration.
 - Hard resource limits on every Pod; namespace quotas on the load generator.
 - AWS Budgets alerts at $1, $5, $20, and the $30 maximum before anything is created.
 - No managed Kubernetes (EKS control plane is ~$73/month). No NAT gateway. No load balancer service if a free option works.
@@ -108,7 +106,8 @@ Kubernetes cluster (k3s)
   The engine now reports `maxBusy`. Then (2026-11-17) the owner's new loop, **learn → play → aha → next level**: a brief dialog teaches each level's idea before designing (`intro` in the lesson file, `web/src/game/briefing.mjs`), freeze frames become the aha moments, and the ticket keeps only "Reread the brief". Lesson 1 also has its design controls as tags on the shop (`CONTROLS_ON_SHOP`; a row under the shop on phones), with your call, cost and Run in a setup area under the shop (hidden during the rush), so the ticket is just the grader; the queue-depth chart is gone; the X-ray key moved behind a "?" in the page corner; on phones the ticket is a full-screen sheet that opens for the debrief (Ticket button any time); "Coming later" was removed from every ticket. Rolled out to lessons 2-4 on 2026-11-17 (briefs, aha moments, controls on the shop for every lever). 135 tests pass. The owner is playtesting all four lessons as a learner and will report what they learned. The levels' old `brief` and `concept` fields are no longer shown (the briefs replaced them). 127 tests pass. `scripts/serve.py` serves `dist/` with no caching. Next:
   - Freeze frames for lessons 1, 3 and 4.
   - Then roadmap step 4.
-- Known items: `CPUThrottlingHigh` goes pending on low-limit containers (never fired, and rushes weren't slowed; revisit the limits). `-KillBarista` may not trigger a rescue, since the barista can sometimes finish its drink before it's killed. Before AWS: add a NetworkPolicy for Redis, build images for ARM as well, measure memory on a single node, and trim the metrics kept from the kubelet and API server.
+- Step 4 part A (2026-11-17), all local: Redis NetworkPolicy (`k8s/app/networkpolicy.yaml`, verified: outsiders refused, the shop and Prometheus allowed), metrics trimmed, ARM images build and run (`scripts/build-arm.ps1`), single-node memory measured (see Observability under Decided). Part B (2026-11-17/18): AWS design agreed (`docs/aws.md`): CloudFront default URL, private S3 site, ECR, own VPC with no NAT and no inbound rules, SSM-only access, t4g.medium with auto-stop (idle alarm + 4-hour cap), S3 state backend. Shared AWS account (owner's choice): deploy identity `rush-hour-admin` (PowerUserAccess + `infra/bootstrap/rush-hour-admin-policy.json`), CLI profile `rush-hour`. `infra/bootstrap` applied 2026-11-18: budget `rush-hour-monthly` ($30, alerts $1/$5/$20/$30 + forecast, filtered to tag Project=rush-hour) and state bucket `rush-hour-tfstate-723951823306`. Waiting: the owner activates the `Project` cost allocation tag in Billing (appears within ~24h); don't apply `infra/live` before that. On AWS, k3s skips Traefik and its load balancer, since nothing public reaches the cluster.
+- Known items: `CPUThrottlingHigh` goes pending on low-limit containers (never fired, and rushes weren't slowed; revisit the limits). `-KillBarista` may not trigger a rescue, since the barista can sometimes finish its drink before it's killed.
 - `Notes.md` holds the owner's personal learning notes. It's gitignored.
 
 ## Conventions

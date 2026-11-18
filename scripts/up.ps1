@@ -3,16 +3,22 @@
     Brings up the whole Rush Hour system on this laptop. Safe to run repeatedly.
 .EXAMPLE
     .\scripts\up.ps1
+.EXAMPLE
+    .\scripts\up.ps1 -Single
+    A separate one-node cluster (rush-hour-single), shaped like the AWS server.
 #>
 [CmdletBinding()]
-param()
+param(
+    [switch]$Single
+)
 
 # Native tools write progress to stderr, so failures are detected by exit code in Invoke-Step.
 $ErrorActionPreference = 'Continue'
 
-$ClusterName = 'rush-hour'
-$Context = "k3d-$ClusterName"
 $Root = Split-Path -Parent $PSScriptRoot
+$ClusterName = if ($Single) { 'rush-hour-single' } else { 'rush-hour' }
+$ClusterConfig = if ($Single) { "$Root\k8s\k3d-single.yaml" } else { "$Root\k8s\k3d-cluster.yaml" }
+$Context = "k3d-$ClusterName"
 $Services = @('register', 'barista')
 $MonitoringRepo = 'https://prometheus-community.github.io/helm-charts'
 $MonitoringVersion = '92.17.1'
@@ -50,7 +56,7 @@ if ($LASTEXITCODE -ne 0) {
 # k3d's JSON listing tells us if the cluster exists and how many servers are running.
 $cluster = k3d cluster list -o json | ConvertFrom-Json | Where-Object { $_.name -eq $ClusterName }
 if (-not $cluster) {
-    Invoke-Step 'Creating the cluster' { k3d cluster create --config "$Root\k8s\k3d-cluster.yaml" }
+    Invoke-Step 'Creating the cluster' { k3d cluster create --config $ClusterConfig }
 } else {
     Invoke-Step 'Starting the cluster if it is stopped' { k3d cluster start $ClusterName }
     Invoke-Step 'Pointing kubectl at the cluster' {
@@ -135,6 +141,6 @@ Write-Host ''
 Write-Host 'Rush Hour is up.' -ForegroundColor Green
 kubectl --context $Context get pods -n rush-hour
 Write-Host ''
-Write-Host 'Send a rush:   .\scripts\rush.ps1'
+Write-Host "Send a rush:   .\scripts\rush.ps1$(if ($Single) { ' -Cluster rush-hour-single' })"
 Write-Host 'Open Grafana:  .\scripts\grafana.ps1'
 Write-Host "Tear it down:  k3d cluster delete $ClusterName"
