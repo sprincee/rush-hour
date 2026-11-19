@@ -59,7 +59,8 @@
   @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(92 211 227 / 0.55); } 50% { box-shadow: 0 0 0 7px rgb(92 211 227 / 0); } }
   @media (prefers-reduced-motion: reduce) { .monitor.nudge .monitor-screen { animation: none; } }
 
-  /* The X-ray key: a "?" fixed in the page corner opens a small card. */
+  /* The X-ray key: a "?" opens a small card. Wide screens: fixed in the page corner.
+     Phones: one of the HUD buttons in the shop's corner. */
   .help-btn {
     position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 44px; height: 44px; border-radius: 50%;
     border: 1px solid var(--xr-line); background: var(--xr-bg); color: var(--xr-line);
@@ -122,6 +123,9 @@
   .phase { font: 600 var(--t-xs)/1 var(--font-ticket); text-transform: uppercase; letter-spacing: 0.08em; color: var(--espresso-muted); display: flex; gap: 4px; flex-wrap: wrap; }
   .phase span { padding: 7px 9px; border-radius: 5px; }
   .phase span.on { background: rgb(255 255 255 / 0.14); color: #fff; }
+  .ghost .ico { display: none; width: 16px; height: 16px; }
+  .speed-btn { display: none; }
+  #mute[aria-pressed="true"] .waves { display: none; }
   .stage .ghost { font: 700 var(--t-sm)/1 var(--font-body); border-radius: var(--radius); padding: 9px 14px; cursor: pointer; background: transparent; color: var(--espresso-ink); border: 1px solid rgb(255 255 255 / 0.25); }
   .seg { display: inline-flex; border: 1px solid rgb(255 255 255 / 0.22); border-radius: var(--radius); overflow: hidden; }
   .seg input { position: absolute; opacity: 0; pointer-events: none; }
@@ -492,10 +496,38 @@
   }
 
 
-  /* Phones are the base; these add room. On phones the frame around the shop is quiet:
-     one row of small stats, no software sub-labels (the X-ray key has them), no level
-     progress (the ticket shows it), and a tighter key and caption. */
-  .stage { padding: 6px; gap: 8px; border-radius: 14px; }
+  /* Phones are the base; these add room. On phones the shop is the game: it runs edge to
+     edge, its controls float in its corner as small icon buttons (a game HUD), the stats
+     are one slim line (hidden while designing, when they're all zero), and the tags are
+     compact chips. Software sub-labels and prices show under the X-ray and in the budget. */
+  .game .stage { padding: 0 0 8px; gap: 8px; border-radius: 0; margin-inline: calc(-1 * var(--gutter-left)) calc(-1 * var(--gutter-right)); }
+  .game .stage .scene { border-radius: 0; }
+  .scene-box { position: relative; }
+  .scene-box .controls { position: absolute; right: 6px; bottom: 6px; z-index: 2; padding: 0; }
+  .scene-box .group { gap: 5px; flex-wrap: nowrap; }
+  .scene-box .ghost, .scene-box .help-btn {
+    position: static; width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center;
+    border-radius: 50%; border: 1px solid rgb(255 255 255 / 0.22); background: rgb(22 15 10 / 0.72); color: #FFF7EC;
+    font: 700 0.74rem/1 var(--font-ticket); box-shadow: none;
+  }
+  .scene-box .ghost[hidden] { display: none; }
+  .scene-box .ghost .ico { display: block; }
+  .scene-box .ghost .lbl, .scene-box .seg { display: none; }
+  .scene-box .speed-btn { display: inline-grid; }
+  .scene-box .help-btn[aria-expanded="true"] { background: var(--xr-line); color: var(--xr-bg); }
+  .stage > .shop-tags, .stage > .setup, .stage > .stats, .stage > .goal-strip, .stage > .caption, .stage > .moment { margin-inline: 12px; }
+  .stage[data-phase="design"] > .stats { display: none; }
+  .stats div { border-top: 0; padding-top: 0; }
+  .shop-tags { gap: 6px; padding: 0; }
+  .shop-tag { gap: 7px; padding: 4px 5px 4px 10px; }
+  .shop-tag .sys-word, .shop-tag .tag-price { display: none; }
+  .shop-tags.xray-on .shop-tag .sys-word { display: block; }
+  .shop-word { font-size: 0.86rem; }
+  .shop-tag .stepper button { width: 30px; height: 30px; }
+  .shop-tag .stepper output { min-width: 24px; }
+  .shop-tag .switch { height: 30px; min-width: 48px; }
+  .shop-tag select { height: 30px; }
+  .tag-range input { width: 90px; }
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   .stats div { padding-top: 6px; }
   .stats dt { font-size: 0.56rem; letter-spacing: 0.05em; }
@@ -511,7 +543,37 @@
   .controls { justify-content: flex-start; }
 
   @media (min-width: 600px) {
-    .stage { padding: 10px; gap: 10px; border-radius: 18px; }
+    .game .stage { padding: 10px; gap: 10px; border-radius: 18px; margin-inline: 0; }
+    .game .stage .scene { border-radius: 11px; }
+    .scene-box { position: static; }
+    .scene-box .controls { position: static; padding: 0 6px; }
+    .scene-box .group { gap: var(--s-2); flex-wrap: wrap; }
+    .scene-box .ghost {
+      width: auto; height: auto; display: inline-block; border-radius: var(--radius); padding: 9px 14px;
+      background: transparent; color: var(--espresso-ink); border: 1px solid rgb(255 255 255 / 0.25);
+      font: 700 var(--t-sm)/1 var(--font-body);
+    }
+    .scene-box .help-btn {
+      position: fixed; width: 44px; height: 44px; border-radius: 50%;
+      border: 1px solid var(--xr-line); background: var(--xr-bg); color: var(--xr-line); font: 700 1.1rem/1 var(--font-ticket);
+      box-shadow: 0 10px 22px -10px rgb(0 0 0 / 0.7);
+    }
+    .scene-box .ghost .ico { display: none; }
+    .scene-box .ghost .lbl { display: inline; }
+    .scene-box .seg { display: inline-flex; }
+    .scene-box .speed-btn { display: none; }
+    .stage > .shop-tags, .stage > .setup, .stage > .stats, .stage > .goal-strip, .stage > .caption, .stage > .moment { margin-inline: 0; }
+    .stage[data-phase="design"] > .stats { display: grid; }
+    .stats div { border-top: 1px solid rgb(255 255 255 / 0.14); padding-top: var(--s-2); }
+    .shop-tag .sys-word, .shop-tag .tag-price { display: block; }
+    .shop-tag .tag-price { display: inline; }
+    .shop-tag { gap: 10px; padding: 6px 8px 6px 12px; }
+    .shop-word { font-size: 0.95rem; }
+    .shop-tag .stepper button { width: 34px; height: 34px; }
+    .shop-tag .stepper output { min-width: 30px; }
+    .shop-tag .switch { height: 34px; min-width: 58px; }
+    .shop-tag select { height: 34px; }
+    .tag-range input { width: 110px; }
     .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
     .stats div { padding-top: var(--s-2); }
     .stats dt { font-size: 0.66rem; letter-spacing: 0.07em; }

@@ -39,8 +39,10 @@ export function createSound({ enabled = true } = {}) {
   }
   if (enabled && Ctx && globalThis.document?.addEventListener) {
     const unlock = () => { start(); if (ctx?.state === 'suspended') ctx.resume(); };
-    document.addEventListener('pointerdown', unlock, { capture: true });
-    document.addEventListener('keydown', unlock, { capture: true });
+    // iPhones (Safari) only let audio start from the end of a tap, not the touch-down.
+    for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) {
+      document.addEventListener(type, unlock, { capture: true });
+    }
   }
 
   // A tone that starts at `freq`, optionally slides to `to`, and fades out over `len` seconds.

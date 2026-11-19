@@ -221,7 +221,7 @@ All fonts are free and self-hosted from `web/static/fonts/` (no Google Fonts req
 - Tapping the ticket skips straight to the stamp. With reduced motion, everything shows at once.
 
 ### Layout: mobile first
-- **The frame around the shop on phones (2026-11-17)** is quiet: one row of four small stats with no software sub-labels (the X-ray key has those), no Brief/Design/Run/Debrief strip (the ticket shows the phase), and a smaller key, controls and caption. From 600px up it returns to the full version.
+- **On phones the shop is the game (2026-11-19).** The shop runs edge to edge on lesson pages. Its controls are small round icon buttons floating in its bottom-right corner, like a game HUD: ticket, sound, speed (one button cycling 1×, 2×, 4×), and the X-ray key "?". Below it, the tags are compact chips on one row (no software name or price; the X-ray shows the software names and the budget bar shows the cost), then the goal, your call, and Run. The stats are one slim row, hidden while designing (they're all zero). No Brief/Design/Run/Debrief strip: the ticket shows the phase. From 600px up, the framed shop, labeled buttons, and full tags return. Next idea: a landscape mode where the shop fills the screen.
 Most players will be on phones. Base CSS is the phone layout, and `min-width` queries add room (600px, 640px, 1000px, 1100px). Check every change at 375px wide first.
 
 ### Site structure (v2, 2026-11-12)

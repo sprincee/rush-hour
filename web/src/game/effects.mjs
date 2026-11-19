@@ -6,6 +6,22 @@ const LIFE = { served: 1.1, turnaway: 0.7, orderUp: 0.8, batch: 1.0, steam: 0.9 
 const MAX = 90;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// A soft white puff, drawn once: building a gradient for every puff, every frame, is slow
+// on phones. Without a real page (the Node tests) there's no canvas, so it stays null.
+let puff;
+function getPuff() {
+  if (puff !== undefined) return puff;
+  const cv = globalThis.document?.createElement?.('canvas');
+  const c = cv?.getContext?.('2d');
+  if (!c || typeof c.createRadialGradient !== 'function') { puff = null; return puff; }
+  cv.width = cv.height = 64;
+  const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255, 255, 255, 1)'); g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  puff = cv;
+  return puff;
+}
 // Out-and-back overshoot for pops: 0 → 1.18 → 1.
 const pop = p => (p < 0.6 ? (p / 0.6) * 1.18 : 1.18 - ((p - 0.6) / 0.4) * 0.18);
 const fadeOut = (age, life, tail = 0.35) => clamp((life - age) / (life * tail), 0, 1);
@@ -77,13 +93,14 @@ export function createEffects() {
     // A puff of steam from the wand as a drink finishes.
     steam(c, e, age) {
       const p = age / LIFE.steam;
+      const img = getPuff();
       for (let k = 0; k < 5; k++) {
         const dx = (k - 2) * 7 + Math.sin(k * 2.1 + age * 4) * 4;
         const r = 7 + p * 16 + k;
-        const g = c.createRadialGradient(e.x + dx, e.y - p * 46 - k * 3, 0, e.x + dx, e.y - p * 46 - k * 3, r);
-        g.addColorStop(0, `rgba(255, 255, 255, ${0.5 * (1 - p)})`); g.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        c.globalAlpha = e.alpha;
-        c.fillStyle = g; circle(c, e.x + dx, e.y - p * 46 - k * 3, r); c.fill();
+        const x = e.x + dx, y = e.y - p * 46 - k * 3;
+        c.globalAlpha = e.alpha * 0.5 * (1 - p);
+        if (img) { c.drawImage(img, x - r, y - r, r * 2, r * 2); continue; }
+        c.fillStyle = '#ffffff'; circle(c, x, y, r * 0.6); c.fill();
       }
     },
   };

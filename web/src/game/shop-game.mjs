@@ -168,7 +168,11 @@ export function startGame({ config, lesson, next, onFinish }) {
   const fxCanvas = document.getElementById('fx');
   const fxCtx = fxCanvas?.getContext ? fxCanvas.getContext('2d') : null;
   let fxDirty = false;
-  let scale = 1, backLayer = null, frontLayer = null, shadeLayer = null;
+  let scale = 1, backLayer = null, frontLayer = null, shadeLayer = null, gridLayer = null;
+  // Performance on phones: anything that never changes is drawn once and reused.
+  const apronShade = new Map(); // One gradient per barista spot, instead of one per frame.
+  let puff = null; // A soft steam puff, drawn once and stamped (gradients are slow to build).
+  const drawList = []; // Reused every frame, so drawing customers makes no garbage.
 
   function rr(c, x, y, w, h, r) {
     c.beginPath();
@@ -321,6 +325,27 @@ export function startGame({ config, lesson, next, onFinish }) {
     c.fillStyle = '#ffffff'; c.font = "700 11px 'Bricolage Grotesque', sans-serif"; c.textAlign = 'center'; c.fillText('ORDER UP', 870, 248); c.textAlign = 'left';
   }
 
+  // The X-ray's dark glass and grid never change, so they're one layer.
+  function drawGrid(c) {
+    c.fillStyle = 'rgba(7, 13, 22, 0.84)'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(120, 170, 230, 0.08)'; c.lineWidth = 1;
+    c.beginPath();
+    for (let x = 0; x <= W; x += 40) { c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, H); }
+    for (let y = 0; y <= H; y += 40) { c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); }
+    c.stroke();
+  }
+
+  // A soft white puff: opaque in the middle, fading to nothing at the edge.
+  function makePuff() {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255, 255, 255, 1)'); g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+    return cv;
+  }
+
   function drawShade(c) {
     const v = c.createRadialGradient(500, 300, 260, 500, 300, 720);
     v.addColorStop(0, 'rgba(28, 14, 4, 0)'); v.addColorStop(1, 'rgba(28, 14, 4, 0.34)');
@@ -330,7 +355,8 @@ export function startGame({ config, lesson, next, onFinish }) {
   function drawStaff(c, x, now, busy, progress, skin, hair, ring = '#e0a85c') {
     const sway = busy && !REDUCED ? Math.sin(now / 150 + x) * 2.2 : 0;
     c.fillStyle = 'rgba(0, 0, 0, 0.10)'; ellipse(c, x, 292, 30, 6); c.fill();
-    c.fillStyle = lg(c, x - 22, 0, x + 22, 0, [[0, '#ddd6cc'], [0.5, '#f4f0ea'], [1, '#d6cfc4']]); rr(c, x - 22, 232, 44, 72, 15); c.fill();
+    if (!apronShade.has(x)) apronShade.set(x, lg(c, x - 22, 0, x + 22, 0, [[0, '#ddd6cc'], [0.5, '#f4f0ea'], [1, '#d6cfc4']]));
+    c.fillStyle = apronShade.get(x); rr(c, x - 22, 232, 44, 72, 15); c.fill();
     c.fillStyle = '#2f6b52'; rr(c, x - 15, 249, 30, 55, 6); c.fill();
     c.strokeStyle = '#2f6b52'; c.lineWidth = 3;
     c.beginPath(); c.moveTo(x - 11, 250); c.lineTo(x - 6, 236); c.moveTo(x + 11, 250); c.lineTo(x + 6, 236); c.stroke();
@@ -462,10 +488,7 @@ export function startGame({ config, lesson, next, onFinish }) {
     const d = run.design;
     const xs = BARISTA_SLOTS[d.baristas];
     c.save(); c.globalAlpha = a;
-    c.fillStyle = 'rgba(7, 13, 22, 0.84)'; c.fillRect(0, 0, W, H);
-    c.strokeStyle = 'rgba(120, 170, 230, 0.08)'; c.lineWidth = 1;
-    for (let x = 0; x <= W; x += 40) { c.beginPath(); c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, H); c.stroke(); }
-    for (let y = 0; y <= H; y += 40) { c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.stroke(); }
+    if (gridLayer) c.drawImage(gridLayer, 0, 0, W, H); // The dark glass and grid, drawn once in resize().
 
     // Arrows first, so boxes sit on top of them
     arrow(c, 236, 468, 236, 312, now);
@@ -637,11 +660,14 @@ export function startGame({ config, lesson, next, onFinish }) {
       const p = clamp((run.t - run.cashierFrom) / config.register.orderSeconds, 0, 1);
       ctx.fillStyle = '#fffdf6'; ctx.fillRect(274, 272 - p * 16, 16, p * 16);
     }
-    state.steam.forEach(s => {
-      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
-      g.addColorStop(0, `rgba(255, 255, 255, ${0.34 * s.life})`); g.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = g; circle(ctx, s.x, s.y, s.r); ctx.fill();
-    });
+    if (state.steam.length) {
+      puff ??= makePuff();
+      for (const s of state.steam) {
+        ctx.globalAlpha = 0.34 * s.life;
+        ctx.drawImage(puff, s.x - s.r, s.y - s.r, s.r * 2, s.r * 2);
+      }
+      ctx.globalAlpha = 1;
+    }
     run.cups.slice(0, 10).forEach((cup, k) => {
       const age = (now - cup.born) / 1000;
       const pop = REDUCED ? 1 : clamp(age * 4, 0, 1);
@@ -665,7 +691,10 @@ export function startGame({ config, lesson, next, onFinish }) {
       ctx.fillStyle = '#fff7ec'; ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = 'center';
       ctx.fillText('+' + (run.rail.length - RAIL.slots), x + 10, 174); ctx.textAlign = 'left';
     }
-    run.customers.filter(p => !offstage(run, p)).sort((a, b) => a.y - b.y).forEach(p => drawCustomer(ctx, p, now));
+    drawList.length = 0;
+    for (const p of run.customers) if (!offstage(run, p)) drawList.push(p);
+    drawList.sort((a, b) => a.y - b.y);
+    for (const p of drawList) drawCustomer(ctx, p, now);
     if (shadeLayer) ctx.drawImage(shadeLayer, 0, 0, W, H);
     if (state.xa > 0.01) drawXray(ctx, run, now, state.xa);
     if (fxCtx && (fx.count || fxDirty)) {
@@ -760,6 +789,7 @@ export function startGame({ config, lesson, next, onFinish }) {
 
   // ---------- Panels ----------
   const panel = byId('panel');
+  const stageEl = byId('scene').closest?.('.stage') || byId('stage');
 
   const starCount = i => state.stars[i].filter(Boolean).length;
   const navStars = i => `<span class="nav-stars" aria-label="${starCount(i)} of 3 stars">${state.stars[i]
@@ -778,7 +808,9 @@ export function startGame({ config, lesson, next, onFinish }) {
     byId('phase').innerHTML = ['Brief', 'Design', 'Run', 'Debrief']
       .map((n, i) => `<span class="${i === ph || (i === 0 && ph === 1) ? 'on' : ''}">${n}</span>`).join('');
     byId('pause').hidden = state.phase !== 'run';
-    byId('pause').textContent = state.playing ? 'Pause' : 'Resume';
+    byId('pause').innerHTML = state.playing ? `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="3" width="3" height="10" rx="1" fill="currentColor"/><rect x="9" y="3" width="3" height="10" rx="1" fill="currentColor"/></svg><span class="lbl">Pause</span>` : `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3l8 5-8 5z" fill="currentColor"/></svg><span class="lbl">Resume</span>`;
+    byId('pause').setAttribute('aria-label', state.playing ? 'Pause' : 'Resume');
+    stageEl.dataset.phase = state.phase; // Phones hide the empty stats while designing.
   }
 
   function badge(ok) {
@@ -1451,6 +1483,7 @@ ${batchFacts(s)}
   });
 
   function designChanged(act = null) {
+    wake();
     sound.play('tick');
     bumpAct = act;
     const lv = LEVELS[state.level];
@@ -1541,6 +1574,7 @@ ${batchFacts(s)}
   const xrayBtn = byId('xrayBtn');
   /** flair: the player flipped it (or a freeze frame did): play the sound and the sweep. */
   function setXray(on, flair = false) {
+    wake();
     if (flair && on !== state.xray) {
       sound.play(on ? 'xray' : 'xrayOff');
       if (!REDUCED && sceneEl.classList) { sceneEl.classList.remove('sweep'); void sceneEl.offsetWidth; sceneEl.classList.add('sweep'); }
@@ -1572,12 +1606,23 @@ ${batchFacts(s)}
   const muteBtn = byId('mute');
   function renderMute() {
     muteBtn.setAttribute('aria-pressed', String(sound.muted));
-    muteBtn.textContent = sound.muted ? 'Sound off' : 'Sound on';
+    muteBtn.setAttribute('aria-label', sound.muted ? 'Sound off' : 'Sound on');
+    muteBtn.innerHTML = `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor"/><path d="M11 5.5c1 .8 1.5 1.6 1.5 2.5s-.5 1.7-1.5 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="waves"/></svg><span class="lbl">${sound.muted ? 'Sound off' : 'Sound on'}</span>`;
   }
   muteBtn.addEventListener('click', () => { sound.setMuted(!sound.muted); renderMute(); sound.play('tick'); });
   renderMute();
   byId('pause').addEventListener('click', () => { if (moment) { resume(); return; } state.playing = !state.playing; renderPhase(); });
-  document.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener('change', () => { state.speed = Number(r.value); }));
+  // Speed: three buttons on wide screens; on phones one button that cycles 1×, 2×, 4×.
+  const speedBtn = byId('speed-btn');
+  function setSpeed(n) {
+    state.speed = n;
+    speedBtn.textContent = `${n}×`;
+    speedBtn.setAttribute('aria-label', `Speed: ${n}×, tap to change`);
+    const radio = document.getElementById(`speed-${n}`);
+    if (radio) radio.checked = true;
+  }
+  document.querySelectorAll('input[name="speed"]').forEach(r => r.addEventListener('change', () => setSpeed(Number(r.value))));
+  speedBtn.addEventListener('click', () => { setSpeed({ 1: 2, 2: 4, 4: 1 }[state.speed] || 2); sound.play('tick'); });
 
   const hud = {
     clock: byId('clock'), served: byId('st-served'),
@@ -1626,7 +1671,32 @@ ${batchFacts(s)}
   }
 
   // ---------- Main loop ----------
+  // During a rush the shop redraws every frame. When it's calm (designing, reading the
+  // debrief, nothing moving), it redraws about 15 times a second, which saves battery and
+  // heat on phones; wake() asks for the next frame straight away after a change.
   let lastFrame = performance.now();
+  let sinceDraw = Infinity;
+  function wake() { sinceDraw = Infinity; }
+  function calm(run) {
+    if ((state.phase === 'run' && state.playing) || moment || reveal || roll) return false;
+    if (fx.count || state.steam.length || run.pops.length) return false;
+    if (Math.abs((state.xray ? 1 : 0) - state.xa) > 0.01) return false;
+    return !run.customers.some(p => p.moving);
+  }
+
+  // ?fps on the page's address shows the frame rate, for checking performance on a phone.
+  const fpsEl = /[?&]fps\b/.test(globalThis.location?.search || '') ? document.createElement('div') : null;
+  const fpsLog = { frames: 0, worst: 0, since: 0 };
+  if (fpsEl) {
+    fpsEl.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:60;padding:4px 8px;border-radius:6px;background:rgb(0 0 0/0.75);color:#9fe6c4;font:600 12px monospace';
+    document.body.append(fpsEl);
+  }
+  function countFrame(now, ms) {
+    fpsLog.frames++; fpsLog.worst = Math.max(fpsLog.worst, ms);
+    if (now - fpsLog.since < 500) return;
+    fpsEl.textContent = `${Math.round(fpsLog.frames * 1000 / (now - fpsLog.since))} fps · slowest draw ${Math.round(fpsLog.worst)} ms`;
+    fpsLog.frames = 0; fpsLog.worst = 0; fpsLog.since = now;
+  }
   function frame(now) {
     const dt = Math.min(0.05, (now - lastFrame) / 1000);
     lastFrame = now;
@@ -1646,7 +1716,14 @@ ${batchFacts(s)}
     if (state.phase === 'run' && !run.finished && run.events.length === 0 && run.customers.every(p => p.state === 'gone')) {
       run.finished = true; onFinished(run);
     }
-    render(now);
+    sinceDraw += now - (frame.prev ?? now);
+    frame.prev = now;
+    if (!calm(run) || sinceDraw >= 66) {
+      sinceDraw = 0;
+      const t0 = performance.now();
+      render(now);
+      if (fpsEl) countFrame(now, performance.now() - t0);
+    }
     updateHud(now);
     requestAnimationFrame(frame);
   }
@@ -1659,7 +1736,8 @@ ${batchFacts(s)}
     canvas.width = Math.round(W * scale);
     canvas.height = Math.round(H * scale);
     if (fxCanvas) { fxCanvas.width = canvas.width; fxCanvas.height = canvas.height; fxDirty = true; }
-    backLayer = layer(drawBack); frontLayer = layer(drawFront); shadeLayer = layer(drawShade);
+    backLayer = layer(drawBack); frontLayer = layer(drawFront); shadeLayer = layer(drawShade); gridLayer = layer(drawGrid);
+    wake();
   }
   new ResizeObserver(resize).observe(byId('scene'));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(resize);
@@ -1682,6 +1760,6 @@ ${batchFacts(s)}
     get briefings() { return [...state.briefings]; },
     /** How many times the ticket sheet opened (phones only). */
     get sheetOpens() { return sheetOpens; },
-    setSpeed(n) { state.speed = n; },
+    setSpeed(n) { state.speed = n; speedBtn.textContent = `${n}×`; },
   };
 }

@@ -8,23 +8,28 @@
 
   <div class="play">
     <div class="stage">
-      {% include "_shop_stage.html.j2" %}
-      <div class="shop-tags" id="shop-tags" aria-label="Design your shop"></div>
-      <div class="setup" id="setup" hidden></div>
-      <div class="moment" id="moment" role="status" hidden></div>
-      <div class="controls">
-        <div class="phase" id="phase" aria-label="Level progress"></div>
-        <div class="group">
-          <button class="ghost" id="ticket-btn" type="button" hidden>Ticket</button>
-          <button class="ghost" id="mute" type="button" aria-pressed="false">Sound on</button>
-          <button class="ghost" id="pause" type="button" hidden>Pause</button>
-          <div class="seg" role="radiogroup" aria-label="Speed">
-            <input type="radio" name="speed" id="speed-1" value="1"><label for="speed-1">1×</label>
-            <input type="radio" name="speed" id="speed-2" value="2" checked><label for="speed-2">2×</label>
-            <input type="radio" name="speed" id="speed-4" value="4"><label for="speed-4">4×</label>
+      {# On phones the controls float in the shop's bottom-right corner, like a game HUD. #}
+      <div class="scene-box">
+        {% include "_shop_stage.html.j2" %}
+        <div class="controls">
+          <div class="phase" id="phase" aria-label="Level progress"></div>
+          <div class="group">
+            <button class="ghost" id="ticket-btn" type="button" aria-label="Level ticket" hidden><svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h10v12l-2-1.2L9 14l-2-1.2L5 14l-2-1.2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M5.5 6h5M5.5 9h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="lbl">Ticket</span></button>
+            <button class="ghost" id="mute" type="button" aria-pressed="false">Sound on</button>
+            <button class="ghost" id="pause" type="button" hidden>Pause</button>
+            <div class="seg" role="radiogroup" aria-label="Speed">
+              <input type="radio" name="speed" id="speed-1" value="1"><label for="speed-1">1×</label>
+              <input type="radio" name="speed" id="speed-2" value="2" checked><label for="speed-2">2×</label>
+              <input type="radio" name="speed" id="speed-4" value="4"><label for="speed-4">4×</label>
+            </div>
+            <button class="ghost speed-btn" id="speed-btn" type="button" aria-label="Speed: 2×, tap to change">2×</button>
+            <button type="button" class="help-btn" id="help" aria-expanded="false" aria-controls="key" aria-label="X-ray key">?</button>
           </div>
         </div>
       </div>
+      <div class="shop-tags" id="shop-tags" aria-label="Design your shop"></div>
+      <div class="setup" id="setup" hidden></div>
+      <div class="moment" id="moment" role="status" hidden></div>
       <dl class="stats">
         <div><dt>Served <em>· 200 OK</em></dt><dd id="st-served">0</dd></div>
         <div><dt>Turned away <em>· 503</em></dt><dd id="st-rejected">0</dd></div>
@@ -65,7 +70,6 @@
     </div>
   </dialog>
 
-  <button type="button" class="help-btn" id="help" aria-expanded="false" aria-controls="key" aria-label="X-ray key">?</button>
   <div class="key-pop" id="key" role="dialog" aria-label="X-ray key" hidden>
     <p class="key-title">X-ray key</p>
     <ul class="key-list">
