@@ -1,7 +1,7 @@
 # The course home page. A lesson with a `page` is playable; the rest show as coming soon.
 title = "Rush Hour"
 heading = "Learn system design by running a coffee shop"
-tagline = "Design the shop, send in the morning rush, then flip on the X-ray to see the queues, workers and APIs underneath. Every lesson is checked against a real Kubernetes cluster."
+tagline = "Design the shop, send in the morning rush, then flip on the X-ray to see the queues, workers and APIs underneath."
 # The calibration receipt on the homepage. Keys must come before the first [[table]].
 proof_date = "2026-11-12"
 proof_total = "10 of 10 match within 10%"
@@ -33,6 +33,10 @@ role = "Sends each rush: the same customers the game simulates"
 [[stack]]
 name = "Prometheus and Grafana"
 role = "Measures every rush, with the game's goals as SLOs"
+
+[[stack]]
+name = "AWS, built with Terraform"
+role = "One small k3s server with no open ports, reached only through SSM; it stops itself when idle. This site on S3 and CloudFront"
 
 # How a level works, shown in the start flow.
 [[steps]]

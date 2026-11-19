@@ -22,7 +22,7 @@ Both modes read one shared settings file. A calibration test runs the same rush 
 
 ## Lesson format
 
-Each lesson is 2-3 short levels. The player runs the morning shift: they design the system first, then run the rush, the way real systems should be designed before traffic arrives. Each lesson works on its own. The working mockup of lesson 2 is `lessons/mockups/order-line.html`.
+Each lesson is 2-3 short levels. The player runs the morning shift: they design the system first, then run the rush, the way real systems should be designed before traffic arrives. Each lesson works on its own.
 
 Every level follows the same four phases:
 
