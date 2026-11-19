@@ -9,9 +9,13 @@ import * as lesson1 from '../src/lessons/lesson1.mjs';
 import * as lesson2 from '../src/lessons/lesson2.mjs';
 import * as lesson3 from '../src/lessons/lesson3.mjs';
 import * as lesson4 from '../src/lessons/lesson4.mjs';
+import * as lesson5 from '../src/lessons/lesson5.mjs';
+import * as lesson6 from '../src/lessons/lesson6.mjs';
+import * as lesson7 from '../src/lessons/lesson7.mjs';
+import * as lesson8 from '../src/lessons/lesson8.mjs';
 import { run } from './helpers.mjs';
 
-const LEVELS = [lesson1, lesson2, lesson3, lesson4].flatMap(l => l.LEVELS);
+const LEVELS = [lesson1, lesson2, lesson3, lesson4, lesson5, lesson6, lesson7, lesson8].flatMap(l => l.LEVELS);
 
 // Every design the level's controls allow (barista counts 1-4), within budget.
 function designs(lv) {
@@ -26,6 +30,14 @@ function designs(lv) {
     else if (lv.id === '4.1') out.push({ ...base, batch: false }, { ...base, batch: true });
     else if (lv.id === '4.2') for (const w of [0, 1, 2, 3, 4, 5, 6]) out.push({ ...base, batchWait: w * 60 });
     else if (lv.id === '4.3') for (const policy of lv.policies) for (const batch of [false, true]) out.push({ ...base, policy, batch, mobileEvery: 3 });
+    // Group B: the levers each level shows.
+    else if (lv.id === '5.1') { out.push({ ...base, autoscale: false }, { ...base, autoscale: true }); }
+    else if (lv.id === '5.2') for (const scaleAt of [1, 2, 3, 4, 6]) out.push({ ...base, scaleAt });
+    else if (lv.id === '5.3') { if (baristas === lv.start.baristas) for (const cooldown of [0, 60, 120, 180, 240, 300, 420, 600]) out.push({ ...base, cooldown }); }
+    else if (lv.id.startsWith('6')) { if (baristas === lv.start.baristas) for (const boxRule of lv.boxRules) for (const boxEvery of [180, 300, 420, 600, 900]) out.push({ ...base, boxRule, boxEvery }); }
+    else if (lv.id.startsWith('7')) { if (baristas === lv.start.baristas) { out.push({ ...base, pause: false }); for (let pauseAt = 3; pauseAt <= 20; pauseAt++) out.push({ ...base, pause: true, pauseAt }); } }
+    else if (lv.id === '8.1') { for (const caseSize of [0, 12]) out.push({ ...base, caseSize }); }
+    else if (lv.id === '8.2') { if (baristas === lv.start.baristas) for (let caseSize = 2; caseSize <= 20; caseSize += 2) out.push({ ...base, caseSize }); }
   }
   return out.filter(d => designCost(d) <= lv.budget).map(d => ({ d, s: summarize(run(d, { rush: lv.rush })) }));
 }

@@ -23,31 +23,43 @@ export function mulberry32(seed) {
 export function buildSchedule(config, rush = 'lesson-2') {
   const settings = config.rushes[rush];
   if (!settings) throw new Error(`shop config has no rush named ${rush}`);
-  const { customers, windowSeconds, seed, mobileShare = 0 } = settings;
+  const { seed, mobileShare = 0 } = settings;
+  // A rush can be one even stretch (customers over windowSeconds), or segments that
+  // speed up and slow down, like a quiet start, a rush, and a quiet end.
+  const segments = settings.segments || [{ customers: settings.customers, seconds: settings.windowSeconds }];
+  const customers = segments.reduce((n, s) => n + s.customers, 0);
   // A rush can change the drink mix, like a latte-heavy morning. Same order, new shares.
-  const menu = config.menu.map(m => ({ ...m, share: settings.menuShares?.[m.id] ?? m.share }));
+  // menuExtras (a box of coffee, a pastry) only appear in rushes that give them a share.
+  const menu = [...config.menu, ...(config.menuExtras || [])]
+    .map(m => ({ ...m, share: settings.menuShares?.[m.id] ?? (config.menu.includes(m) ? m.share : 0) }));
+  const lastWithShare = [...menu].reverse().find(m => m.share > 0);
   const rand = mulberry32(seed);
   // Who uses the app gets its own random sequence, so adding app orders never
   // reshuffles anyone's arrival time or drink.
   const channelRand = mulberry32(seed ^ 0x2c1b3c6d);
-  const gap = windowSeconds / customers;
+  const starts = [];
+  let offset = 0;
+  for (const s of segments) { for (let k = 0; k < s.customers; k++) starts.push({ offset, gap: s.seconds / s.customers, k }); offset += s.seconds; }
   const schedule = [];
   for (let i = 0; i < customers; i++) {
+    const { offset: from, gap, k } = starts[i];
     const p = rand();
-    let item = menu[menu.length - 1].id;
+    let item = lastWithShare.id;
     let cumulative = 0;
     for (const m of menu) {
       cumulative += m.share;
       if (p < cumulative) { item = m.id; break; }
     }
-    const at = i * gap + rand() * gap * 0.85;
+    const at = from + k * gap + rand() * gap * 0.85;
     const channel = channelRand() < mobileShare ? 'mobile' : 'walkin';
     schedule.push({ id: i + 1, item, channel, at });
   }
   return schedule;
 }
 
-/** { latte: { label, short, prep, batchable }, ... } with prep in shop seconds. */
+/** { latte: { label, short, prep, batchable, grab, box }, ... } with prep in shop seconds. */
 export function menuById(config) {
-  return Object.fromEntries(config.menu.map(m => [m.id, { label: m.label, short: m.short, prep: m.prepSeconds, batchable: !!m.batchable }]));
+  return Object.fromEntries([...config.menu, ...(config.menuExtras || [])].map(m => [m.id, {
+    label: m.label, short: m.short, prep: m.prepSeconds, batchable: !!m.batchable, grab: !!m.grab, box: !!m.box,
+  }]));
 }

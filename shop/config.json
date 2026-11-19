@@ -43,7 +43,11 @@
       "windowSeconds": 900,
       "seed": 20261121,
       "mobileShare": 0,
-      "menuShares": { "latte": 0.7, "cappuccino": 0.15, "drip": 0.15 }
+      "menuShares": {
+        "latte": 0.7,
+        "cappuccino": 0.15,
+        "drip": 0.15
+      }
     },
     "lesson-4-2": {
       "description": "A quiet half hour: 16 walk-ins over 30 minutes, 70% lattes.",
@@ -51,7 +55,11 @@
       "windowSeconds": 1800,
       "seed": 20261124,
       "mobileShare": 0,
-      "menuShares": { "latte": 0.7, "cappuccino": 0.15, "drip": 0.15 }
+      "menuShares": {
+        "latte": 0.7,
+        "cappuccino": 0.15,
+        "drip": 0.15
+      }
     },
     "lesson-4-3": {
       "description": "The app rush: 52 customers over 30 minutes, 35% ordering in the app, 70% lattes.",
@@ -59,7 +67,102 @@
       "windowSeconds": 1800,
       "seed": 20261126,
       "mobileShare": 0.35,
-      "menuShares": { "latte": 0.7, "cappuccino": 0.15, "drip": 0.15 }
+      "menuShares": {
+        "latte": 0.7,
+        "cappuccino": 0.15,
+        "drip": 0.15
+      }
+    },
+    "lesson-5-1": {
+      "description": "Quiet, then a rush, then quiet: 6 customers over 10 minutes, 36 over the next 10, then 6 over 15.",
+      "seed": 20261205,
+      "mobileShare": 0,
+      "segments": [
+        {
+          "customers": 6,
+          "seconds": 600
+        },
+        {
+          "customers": 36,
+          "seconds": 600
+        },
+        {
+          "customers": 6,
+          "seconds": 900
+        }
+      ]
+    },
+    "lesson-5-3": {
+      "description": "Bursts: four waves of 10 customers in 4 minutes, with quiet 6-minute gaps.",
+      "seed": 20261207,
+      "mobileShare": 0,
+      "segments": [
+        {
+          "customers": 10,
+          "seconds": 240
+        },
+        {
+          "customers": 1,
+          "seconds": 360
+        },
+        {
+          "customers": 10,
+          "seconds": 240
+        },
+        {
+          "customers": 1,
+          "seconds": 360
+        },
+        {
+          "customers": 10,
+          "seconds": 240
+        },
+        {
+          "customers": 1,
+          "seconds": 360
+        },
+        {
+          "customers": 10,
+          "seconds": 240
+        },
+        {
+          "customers": 2,
+          "seconds": 600
+        }
+      ]
+    },
+    "lesson-6": {
+      "description": "Offices order boxes of coffee in the middle of the rush: 36 walk-ins over 15 minutes, 1 in 5 of them a box.",
+      "customers": 36,
+      "windowSeconds": 900,
+      "seed": 20261210,
+      "mobileShare": 0,
+      "menuShares": {
+        "latte": 0.32,
+        "cappuccino": 0.24,
+        "drip": 0.24,
+        "box": 0.2
+      }
+    },
+    "lesson-7": {
+      "description": "An app-heavy rush: 40 customers over 20 minutes, half of them ordering in the app.",
+      "customers": 40,
+      "windowSeconds": 1200,
+      "seed": 20261215,
+      "mobileShare": 0.5
+    },
+    "lesson-8": {
+      "description": "Half the customers just want a croissant: 36 walk-ins over 15 minutes.",
+      "customers": 36,
+      "windowSeconds": 900,
+      "seed": 20261220,
+      "mobileShare": 0,
+      "menuShares": {
+        "latte": 0.2,
+        "cappuccino": 0.15,
+        "drip": 0.15,
+        "pastry": 0.5
+      }
     }
   },
   "register": {
@@ -71,8 +174,57 @@
     "prepFactor": 1.25
   },
   "menu": [
-    { "id": "latte", "label": "Latte", "short": "LATTE", "prepSeconds": 180, "share": 0.4, "batchable": true },
-    { "id": "cappuccino", "label": "Cappuccino", "short": "CAPP", "prepSeconds": 150, "share": 0.3 },
-    { "id": "drip", "label": "Drip coffee", "short": "DRIP", "prepSeconds": 120, "share": 0.3 }
+    {
+      "id": "latte",
+      "label": "Latte",
+      "short": "LATTE",
+      "prepSeconds": 180,
+      "share": 0.4,
+      "batchable": true
+    },
+    {
+      "id": "cappuccino",
+      "label": "Cappuccino",
+      "short": "CAPP",
+      "prepSeconds": 150,
+      "share": 0.3
+    },
+    {
+      "id": "drip",
+      "label": "Drip coffee",
+      "short": "DRIP",
+      "prepSeconds": 120,
+      "share": 0.3
+    }
+  ],
+  "labor": {
+    "description": "Lesson 5: baristas are paid by the minute ($18 an hour), and each call-in pays at least a 15-minute shift.",
+    "perHour": 18,
+    "minShiftSeconds": 900
+  },
+  "menuExtras": [
+    {
+      "id": "box",
+      "label": "Box of coffee",
+      "short": "BOX",
+      "prepSeconds": 480,
+      "box": true,
+      "description": "Lesson 6: a box of coffee for an office ties a barista up for 8 minutes."
+    },
+    {
+      "id": "pastry",
+      "label": "Croissant",
+      "short": "PASTRY",
+      "prepSeconds": 90,
+      "grab": true,
+      "description": "Lesson 8: grab-and-go. Served from the pastry case when it is stocked; otherwise a barista fetches and warms one."
+    },
+    {
+      "id": "restock",
+      "label": "Restock the case",
+      "short": "STOCK",
+      "prepSeconds": 90,
+      "description": "Lesson 8: an idle barista refills the pastry case."
+    }
   ]
 }

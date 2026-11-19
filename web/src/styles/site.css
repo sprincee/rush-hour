@@ -318,3 +318,13 @@
     *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
   }
 }
+
+@layer components {
+  /* The survey after lesson 8: a Google Form, or its questions until the form exists. */
+  .survey { display: grid; gap: var(--s-5); padding-block: var(--s-6) var(--s-7); }
+  .survey-form { border-radius: var(--radius-lg); overflow: hidden; background: var(--ticket); border: var(--edge); }
+  .survey-form iframe { display: block; width: 100%; height: min(1400px, 160vh); border: 0; }
+  .survey-questions { padding: var(--s-5); }
+  .survey-questions ol { margin: var(--s-3) 0 0; padding-left: 1.3em; display: grid; gap: 8px; }
+  .survey-ticket { display: block; max-width: 520px; text-decoration: none; color: inherit; }
+}

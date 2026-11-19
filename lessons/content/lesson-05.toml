@@ -1,0 +1,9 @@
+# Lesson 5's page. Levels, goals and debrief text live in web/src/lessons/lesson5.mjs.
+slug = "more-baristas"
+module = "lesson5.mjs"
+levels = 3
+eyebrow = "Group B · The rush · Lesson 5 of 12"
+heading = "Calling in more baristas"
+description = "Pay baristas by the minute, call them in when the line grows, and send them home when it's quiet: autoscaling, delays, and cooldowns."
+lede = "A full crew all morning is fast, but you pay them to stand around when it's quiet. Call baristas in as the line grows, cover the minutes it takes them to arrive, and decide how soon to send them home."
+foot = "The rush runs on an event-based simulation: every order, ticket and drink happens at an exact time, so the same design always gives the same result. The shop's queues and workers are the same ones that run on the Rush Hour Kubernetes cluster."

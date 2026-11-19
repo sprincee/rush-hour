@@ -1,8 +1,10 @@
 // Shared by every lesson: what parts cost, how a level is judged, and its stars.
 
-export const COST = { barista: 18, rail: 2 };
+export const COST = { barista: 18, rail: 2, pastry: 1 };
 
-export const designCost = d => d.baristas * COST.barista + (d.rail ? COST.rail : 0);
+// Lesson 5 pays baristas by the minute instead (payByMinute), so its cost is the labor goal.
+// Each pastry-case slot is a pastry bought for the morning (lesson 8).
+export const designCost = d => (d.payByMinute ? 0 : d.baristas * COST.barista) + (d.rail ? COST.rail : 0) + (d.caseSize || 0) * COST.pastry;
 
 /** Did a design pass a level? Budget is checked here too, since the game blocks over-budget runs. */
 export function evaluate(level, design, summary) {

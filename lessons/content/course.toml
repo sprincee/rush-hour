@@ -5,6 +5,9 @@ tagline = "Design the shop, send in the morning rush, then flip on the X-ray to 
 # The calibration receipt on the homepage. Keys must come before the first [[table]].
 proof_date = "2026-11-12"
 proof_total = "10 of 10 match within 10%"
+# The survey after lesson 8: a Google Form's link (the "Send" > link option). Empty shows
+# the questions without the form.
+survey_url = "https://docs.google.com/forms/d/e/1FAIpQLSc2IaSv0dfqW5kan7ShJ3Kwri9uaWBi8RQOJrw6yYkcyx52KQ/viewform"
 
 # The real system, listed on the About page.
 [[stack]]
@@ -149,21 +152,25 @@ name = "The rush"
   number = 5
   concept = "Autoscaling"
   coffee = "Calling in more baristas"
+  page = "more-baristas"
 
   [[groups.lessons]]
   number = 6
   concept = "Rate limiting"
   coffee = "No ordering a box of coffee during the rush"
+  page = "box-of-coffee"
 
   [[groups.lessons]]
   number = 7
   concept = "Backpressure"
   coffee = "Line out the door, pause mobile orders"
+  page = "pause-mobile"
 
   [[groups.lessons]]
   number = 8
   concept = "Caching"
   coffee = "The pastry case"
+  page = "pastry-case"
 
 [[groups]]
 id = "C"

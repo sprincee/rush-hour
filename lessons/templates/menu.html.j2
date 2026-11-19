@@ -35,6 +35,16 @@
     {% endfor %}
 
     <div class="menu-group">
+      <p class="menu-group-title"><span>Your turn</span><strong>Should Rush Hour keep going?</strong></p>
+      <div class="tickets"><a class="lesson-ticket survey-ticket" href="survey.html"><div class="ticket">
+        <div class="ticket-head"><span>Survey</span><span>2 minutes</span></div>
+        <span class="lesson-item">Help decide what's next</span>
+        <span class="lesson-coffee">Did it help you understand system design? Which lessons should come next?</span>
+        <span class="lesson-play">Take the survey <span class="arrow">→</span></span>
+      </div></a></div>
+    </div>
+
+    <div class="menu-group">
       <p class="menu-group-title"><span>Coming soon</span></p>
       <div class="soon-groups">
         {% for group in course.groups if group.soon %}

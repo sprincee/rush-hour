@@ -122,6 +122,18 @@ export function startGame({ config, lesson, next, onFinish }) {
   function onEvent(kind, c, extra) {
     const run = state.run;
     const t = run.t;
+    if (kind === 'clockIn') {
+      sound.play('unlock');
+      run.pops.push({ text: '+1 worker', x: BARISTA_SLOTS[run.baristas.length][extra.i], y: 180, color: COLORS.done, born: performance.now() });
+      run.message = `${clock(t)}  A barista you called in has clocked in. <b>→ Scaled out: a new worker joined, ${run.baristas.filter(b => b.onShift).length} in all.</b>`;
+      trigger('clockIn', { b: extra });
+      return;
+    }
+    if (kind === 'clockOut') {
+      run.message = `${clock(t)}  A barista went home: the line was quiet. <b>→ Scaled in: ${run.baristas.filter(b => b.onShift).length} worker${run.baristas.filter(b => b.onShift).length === 1 ? '' : 's'} left.</b>`;
+      trigger('clockOut', { b: extra });
+      return;
+    }
     if (kind === 'accepted') sound.play('ticket');
     if (kind === 'accepted') trigger(c.channel === 'mobile' ? 'appOrder' : 'accepted', { c, item: menu[c.item].label.toLowerCase() });
     if (kind === 'done' && extra.partner) trigger('batchDone', { ticket: extra.ticket, partner: extra.partner });
@@ -135,18 +147,40 @@ export function startGame({ config, lesson, next, onFinish }) {
       run.pops.push({ text: '202 Accepted', x: 246, y: 214, color: COLORS.done, born: performance.now() });
       run.message = `${clock(t)}  Customer ${c.id} ordered a ${menu[c.item].label.toLowerCase()}. <b>→ API replied 202 Accepted${run.design.rail ? ' and added a message to the queue' : ' and handed the job to a free worker'}.</b>`;
     } else if (kind === 'rejected') {
+      if (extra === 'paused') {
+        // Backpressure (lesson 7): the app refuses the order; the customer never comes in.
+        trigger('rejected', { why: extra, c });
+        sound.play('turnAway');
+        run.pops.push({ text: '503 Ordering paused', x: APP_PRINTER.x, y: 104, color: COLORS.rejected, born: performance.now() });
+        run.message = `${clock(t)}  Customer ${c.id} tried to order in the app: "ordering paused". <b>→ Backpressure: 503, try again later.</b>`;
+        return;
+      }
       trigger('rejected', { why: extra, c, track: () => ({ x: c.x ?? REGISTER_SPOT.x, y: (c.y ?? REGISTER_SPOT.y) - 40 }) });
       sound.play('turnAway');
       burst('turnaway', c.x ?? REGISTER_SPOT.x, (c.y ?? REGISTER_SPOT.y) - 40);
       c.via = { ...DOOR_LANE };
       const full = extra === 'full';
+      if (extra === 'limited') {
+        // Rate limited (lesson 6): no box of coffee right now.
+        run.pops.push({ text: '429 Not right now', x: c.x, y: c.y - 74, color: COLORS.rejected, born: performance.now() });
+        run.message = `${clock(t)}  Customer ${c.id} asked for a box of coffee: "not during the rush". <b>→ 429 Too Many Requests: rate limited.</b>`;
+        return;
+      }
       run.pops.push({ text: full ? '503 Queue full' : '503 No worker free', x: c.x, y: c.y - 74, color: COLORS.rejected, born: performance.now() });
       run.message = full
         ? `${clock(t)}  Customer ${c.id} was turned away: the rail is full. <b>→ 503: the queue is at its limit.</b>`
         : `${clock(t)}  Customer ${c.id} walked out: both baristas were busy. <b>→ 503: no free worker and no queue.</b>`;
     } else if (kind === 'done') {
       c.via = null;
-      const bx = BARISTA_SLOTS[run.design.baristas][extra.i];
+      if (extra.fromCase) {
+        // A cache hit (lesson 8): handed over from the pastry case, no barista involved.
+        sound.play('orderUp');
+        run.pops.push({ text: 'Case hit', x: 246, y: 214, color: COLORS.done, born: performance.now() });
+        run.message = `${clock(t)}  Customer ${c.id} took a croissant straight from the case. <b>→ Cache hit: answered at the register, no worker needed.</b>`;
+        trigger('caseHit', { c });
+        return;
+      }
+      const bx = BARISTA_SLOTS[run.baristas.length][extra.i];
       sound.play(extra.partner ? 'batchUp' : 'orderUp');
       burst('orderUp', 0, 0);
       burst('steam', bx - 30, 276);
@@ -486,7 +520,7 @@ export function startGame({ config, lesson, next, onFinish }) {
   function drawXray(c, run, now, a) {
     const big = state.cssWidth < 640;
     const d = run.design;
-    const xs = BARISTA_SLOTS[d.baristas];
+    const xs = BARISTA_SLOTS[run.baristas.length];
     c.save(); c.globalAlpha = a;
     if (gridLayer) c.drawImage(gridLayer, 0, 0, W, H); // The dark glass and grid, drawn once in resize().
 
@@ -552,6 +586,12 @@ export function startGame({ config, lesson, next, onFinish }) {
 
     xs.forEach((x, i) => {
       const b = run.baristas[i];
+      if (b && b.onShift === false) {
+        node(c, x - 44, 214, 88, 96, `Worker ${i + 1}`, null, { align: 'center', dashed: true, fill: 'rgba(20, 40, 66, 0.3)', stroke: 'rgba(150, 200, 255, 0.4)' });
+        c.textAlign = 'center'; c.font = `600 ${big ? 16 : 11}px 'IBM Plex Mono', monospace`; c.fillStyle = '#a9c4e0';
+        c.fillText(b.arriving ? 'starting' : 'off', x, 262); c.textAlign = 'left';
+        return;
+      }
       const busy = b && b.ticket;
       node(c, x - 44, 214, 88, 96, `Worker ${i + 1}`, null, { align: 'center', fill: busy ? 'rgba(120, 60, 24, 0.75)' : 'rgba(20, 40, 66, 0.72)', stroke: busy ? 'rgba(240, 123, 63, 0.95)' : 'rgba(150, 200, 255, 0.85)' });
       c.textAlign = 'center';
@@ -619,7 +659,7 @@ export function startGame({ config, lesson, next, onFinish }) {
 
   function render(now) {
     const run = state.run;
-    const xs = BARISTA_SLOTS[run.design.baristas];
+    const xs = BARISTA_SLOTS[run.baristas.length];
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, W, H);
     if (backLayer) ctx.drawImage(backLayer, 0, 0, W, H);
@@ -644,11 +684,17 @@ export function startGame({ config, lesson, next, onFinish }) {
     }
     drawStaff(ctx, CASHIER_X, now, !!run.ordering || !!run.blockedBy, 0, '#c68b62', '#2b1d16');
     run.baristas.forEach((b, i) => {
+      if (b.onShift === false && !b.arriving) return; // Off shift (lesson 5).
       const busy = !!b.ticket;
       const progress = b.holding ? holdProgress(run, b) : busy ? clamp((run.t - b.startAt) / (b.doneAt - b.startAt), 0, 1) : 0;
+      if (b.arriving) ctx.globalAlpha = 0.35;
       drawStaff(ctx, xs[i], now, busy, progress, STAFF_LOOK[i][0], STAFF_LOOK[i][1], b.holding ? '#5aa2f0' : '#e0a85c');
+      ctx.globalAlpha = 1;
     });
     if (frontLayer) ctx.drawImage(frontLayer, 0, 0, W, H);
+    run.baristas.forEach((b, i) => { if (b.arriving) labelChip(ctx, xs[i], 160, 'On the way'); });
+    if (run.design.caseSize > 0) labelChip(ctx, 318, 236, `CASE ${run.caseStock}/${run.design.caseSize}`);
+    if (run.design.pause && run.rail.length + run.mobileRail.length >= run.design.pauseAt) labelChip(ctx, APP_PRINTER.x, 100, 'APP PAUSED');
     if (run.blockedBy) labelChip(ctx, CASHIER_X, 160, `Waiting for #${run.blockedBy.id}`);
     run.baristas.forEach((b, i) => {
       if (!b.ticket || !menu[b.ticket.item].batchable) return;
@@ -724,7 +770,7 @@ export function startGame({ config, lesson, next, onFinish }) {
 
   function updateVisuals(run, dt) {
     const speed = 300 * Math.sqrt(state.speed);
-    const xs = BARISTA_SLOTS[run.design.baristas];
+    const xs = BARISTA_SLOTS[run.baristas.length];
     run.regQueue.forEach((p, i) => { p.dest = { x: Math.min(REGISTER_SPOT.x + 44 + i * 34, 900), y: 512 + (i % 2) * 6 }; });
     if (run.ordering) run.ordering.dest = { ...REGISTER_SPOT };
     let k = 0;
@@ -818,11 +864,16 @@ export function startGame({ config, lesson, next, onFinish }) {
     return ok ? '<span class="badge ok">✓ MET</span>' : '<span class="badge bad">✕ MISSED</span>';
   }
 
+  const priced = lv => Number.isFinite(lv.budget);
+  const budgetLine = lv => (priced(lv)
+    ? `<span class="goal-text">Stay within the $${lv.budget} budget</span>`
+    : '<span class="goal-text">Baristas are paid by the minute, $18 an hour</span>');
+
   function goalsHTML(lv, s) {
     return `<ul class="goals">${lv.goals.map(g => {
       const ok = s ? g.ok(s) : null;
       return `<li>${badge(ok)}<span class="goal-text"><span class="slo">SLO</span>${g.label}${s ? ` <span class="got">${g.got(s)}</span>` : ''}</span></li>`;
-    }).join('')}<li>${s ? badge(true) : '<span class="badge">BUDGET</span>'}<span class="goal-text">Stay within the $${lv.budget} budget</span></li></ul>`;
+    }).join('')}<li>${s ? badge(true) : `<span class="badge">${priced(lv) ? 'BUDGET' : 'PAY'}</span>`}${budgetLine(lv)}</li></ul>`;
   }
 
   function starListHTML(lv, on, extra = () => '') {
@@ -850,7 +901,7 @@ export function startGame({ config, lesson, next, onFinish }) {
     const cost = designCost(d);
     const over = cost > lv.budget;
     panel.innerHTML = `
-      <div class="ticket-head"><span>LEVEL ${lv.id} · BRIEF</span><span>BUDGET $${lv.budget}</span></div>
+      <div class="ticket-head"><span>LEVEL ${lv.id} · BRIEF</span><span>${priced(lv) ? `BUDGET $${lv.budget}` : 'PAID BY THE MINUTE'}</span></div>
       <h2>${lv.name}</h2>
       <button type="button" class="reread" data-act="brief">Reread the brief</button>
       <h3>Goals</h3>
@@ -862,8 +913,10 @@ export function startGame({ config, lesson, next, onFinish }) {
       ${callHTML(lv, d)}
       <div class="setup-run">
         <div class="budget">
-          <div class="row"><span>Cost</span><span><span class="cost-num">$${cost}</span> of $${lv.budget}</span></div>
-          <div class="bar ${over ? 'over' : ''}"><i style="width:${pct(cost, lv)}"></i></div>
+          ${priced(lv)
+            ? `<div class="row"><span>Cost</span><span><span class="cost-num">$${cost}</span> of $${lv.budget}</span></div>
+          <div class="bar ${over ? 'over' : ''}"><i style="width:${pct(cost, lv)}"></i></div>`
+            : '<div class="row"><span>Pay</span><span>by the minute</span></div>'}
         </div>
         <button type="button" class="btn run-btn" data-act="run" ${over ? 'disabled' : ''}>Run the rush</button>
       </div>
@@ -968,7 +1021,7 @@ ${batchFacts(s)}
     const cost = designCost(d);
     const lines = [
       ...lv.goals.map(g => ({ label: g.label, got: g.got(s), ok: g.ok(s), slo: true })),
-      { label: `Stay within the $${lv.budget} budget`, got: `$${cost} spent`, ok: cost <= lv.budget, slo: false },
+      ...(priced(lv) ? [{ label: `Stay within the $${lv.budget} budget`, got: `$${cost} spent`, ok: cost <= lv.budget, slo: false }] : []),
     ];
     // The SLO note shows on the first debrief of the visit only.
     state.sloNoteRun ??= state.run;
@@ -1001,7 +1054,7 @@ ${batchFacts(s)}
         </div>
         ${ok && state.level === LEVELS.length - 1
           ? (next
-            ? `<p class="next-lesson">That's every level in this lesson. <a class="btn" href="${next.href}">Next lesson: ${next.title}</a></p>`
+            ? `<p class="next-lesson">That's every level in this lesson. <a class="btn" href="${next.href}">${next.label || `Next lesson: ${next.title}`}</a></p>`
             : '<p class="note">That\'s every level in this lesson. More lessons are on the way.</p>')
           : ''}
         <details class="fold">
@@ -1277,6 +1330,8 @@ ${batchFacts(s)}
   const TAG_AT = {
     baristas: { x: 585, y: 362 }, crew: { x: 585, y: 362 }, async: { x: 232, y: 362 },
     rail: FLOOR_L, capacity: FLOOR_L2, policy: FLOOR_L, every: FLOOR_L2, batch: FLOOR_R, batchWait: FLOOR_R,
+    autoscale: FLOOR_L, scaleAt: FLOOR_L2, cooldown: FLOOR_L, boxRule: FLOOR_L, boxEvery: FLOOR_L2,
+    pause: FLOOR_R, pauseAt: { x: 790, y: 520 }, case: FLOOR_L, caseSize: FLOOR_L,
   };
 
   // Which tags a level shows, in order. A level without a baristas control shows its fixed crew.
@@ -1286,8 +1341,13 @@ ${batchFacts(s)}
       : ['baristas', 'rail', ...(lv.capacityUnlocked && d.rail ? ['capacity'] : [])];
     if (!list.includes('baristas')) list.unshift('crew');
     if (list.includes('policy') && d.policy === 'weighted') list.splice(list.indexOf('policy') + 1, 0, 'every');
-    return list.filter(k => TAG_AT[k]);
+    // A setting that only matters when its switch is on only shows then.
+    return list.filter(k => TAG_AT[k]
+      && !(k === 'boxEvery' && d.boxRule !== 'bucket')
+      && !(k === 'pauseAt' && !d.pause));
   }
+  const BOX_RULE_NAMES = { all: 'Take every box', none: 'No boxes in the rush', bucket: '1 box every few min' };
+  const BOX_EVERY = [180, 300, 420, 600, 900]; // Shop seconds between boxes, for the token bucket.
   const greeted = new Set(); // Levels whose tags have pulsed hello.
 
   function tagHTML(key, d, locked, lv) {
@@ -1297,13 +1357,13 @@ ${batchFacts(s)}
     const name = (shop, sys) => `<span class="tag-name"><span class="shop-word">${shop}</span><span class="sys-word">${sys}</span></span>`;
     if (key === 'baristas') return `
       <div class="shop-tag" data-ctl="baristas" ${style}>
-        ${name('Baristas', 'Workers')}
+        ${name(d.autoscale ? 'Minimum crew' : 'Baristas', d.autoscale ? 'Min replicas' : 'Workers')}
         <span class="stepper">
           <button type="button" data-act="minus" aria-label="Remove a barista" ${locked || d.baristas <= 1 ? 'disabled' : ''}>−</button>
           <output aria-live="polite">${d.baristas}</output>
           <button type="button" data-act="plus" aria-label="Add a barista" ${locked || d.baristas >= 4 ? 'disabled' : ''}>+</button>
         </span>
-        <span class="tag-price">$${COST.barista} each</span>
+        <span class="tag-price">${d.payByMinute ? '$18 an hour' : `$${COST.barista} each`}</span>
       </div>`;
     const stepper = (minus, plus, value, labels, lo, hi) => `
         <span class="stepper">
@@ -1316,7 +1376,27 @@ ${batchFacts(s)}
           <span class="shop-val">${on ? 'On' : 'Off'}</span><span class="sys-val">${on ? sysOn : sysOff}</span>
         </button>`;
     const tag = (ctl, body) => `<div class="shop-tag" data-ctl="${ctl}" ${style}>${body}</div>`;
-    if (key === 'crew') return tag('crew', `${name('Baristas', 'Workers')}<strong class="tag-fixed">${d.baristas}, fixed</strong><span class="tag-price">$${COST.barista} each</span>`);
+    if (key === 'crew') return tag('crew', `${name(d.autoscale ? 'Minimum crew' : 'Baristas', d.autoscale ? 'Min replicas' : 'Workers')}<strong class="tag-fixed">${d.baristas}, fixed</strong><span class="tag-price">${d.payByMinute ? '$18 an hour' : `$${COST.barista} each`}</span>`);
+    if (key === 'autoscale') return tag('autoscale', `${name('Call in baristas', 'Autoscaling')}${toggle('autoscale', !!d.autoscale, 'Call in baristas', 'On', 'Off')}`);
+    if (key === 'scaleAt') return tag('scaleAt', `${name('Call one in at', 'Scale-out rule')}
+        ${stepper('scale-minus', 'scale-plus', `${d.scaleAt} per barista`, ['Call in sooner', 'Call in later'], d.scaleAt <= 1, d.scaleAt >= 6)}`);
+    if (key === 'cooldown') return tag('cooldown', `${name('Send home after', 'Cooldown')}
+        ${stepper('cool-minus', 'cool-plus', d.cooldown ? `${d.cooldown / 60} min idle` : 'Right away', ['Send home sooner', 'Send home later'], d.cooldown <= 0, d.cooldown >= 600)}`);
+    if (key === 'boxRule') return tag('boxRule', `${name('Box of coffee', 'Rate limit')}
+        <select name="boxRule" aria-label="Box of coffee rule">
+          ${(lv.boxRules || ['all', 'none']).map(r => `<option value="${r}" ${d.boxRule === r ? 'selected' : ''}>${BOX_RULE_NAMES[r]}</option>`).join('')}
+        </select>`);
+    if (key === 'boxEvery') {
+      const i = BOX_EVERY.indexOf(d.boxEvery);
+      return tag('boxEvery', `${name('One box every', 'Token bucket')}
+        ${stepper('box-minus', 'box-plus', `${d.boxEvery / 60} min`, ['Boxes more often', 'Boxes less often'], i <= 0, i >= BOX_EVERY.length - 1)}`);
+    }
+    if (key === 'pause') return tag('pause', `${name('Pause the app', 'Backpressure')}${toggle('pause', !!d.pause, 'Pause the app', 'On', 'Off')}`);
+    if (key === 'pauseAt') return tag('pauseAt', `${name('When waiting hits', 'Threshold')}
+        ${stepper('pause-minus', 'pause-plus', `${d.pauseAt} tickets`, ['Pause sooner', 'Pause later'], d.pauseAt <= 3, d.pauseAt >= 20)}`);
+    if (key === 'case') return tag('case', `${name('Pastry case', 'Cache')}${toggle('case', d.caseSize > 0, 'Pastry case', 'On', 'Off')}<span class="tag-price">${lv.caseDefault} × $1</span>`);
+    if (key === 'caseSize') return tag('caseSize', `${name('Case holds', 'Cache size')}
+        ${stepper('case-minus', 'case-plus', `${d.caseSize}`, ['Smaller case', 'Bigger case'], d.caseSize <= 2, d.caseSize >= 20)}<span class="tag-price">$1 each</span>`);
     if (key === 'rail') return tag('rail', `${name('Ticket rail', 'Queue')}${toggle('rail', d.rail, 'Ticket rail', 'On', 'Off')}<span class="tag-price">$${COST.rail}</span>`);
     if (key === 'capacity') return tag('capacity', `${name('Rail holds', 'Queue limit')}
         <span class="tag-range"><input type="range" name="capacity" min="5" max="50" step="1" value="${d.capacity}" aria-label="Rail size in tickets"><output>${d.capacity}</output></span>
@@ -1452,6 +1532,21 @@ ${batchFacts(s)}
     else if (act === 'wait-plus') { d.batchWait = Math.min(360, d.batchWait + 60); designChanged(act); }
     else if (act === 'every-minus') { d.mobileEvery = Math.max(2, d.mobileEvery - 1); designChanged(act); }
     else if (act === 'every-plus') { d.mobileEvery = Math.min(6, d.mobileEvery + 1); designChanged(act); }
+    else if (act === 'autoscale') { d.autoscale = !d.autoscale; designChanged(act); }
+    else if (act === 'scale-minus') { d.scaleAt = Math.max(1, d.scaleAt - 1); designChanged(act); }
+    else if (act === 'scale-plus') { d.scaleAt = Math.min(6, d.scaleAt + 1); designChanged(act); }
+    else if (act === 'cool-minus') { d.cooldown = Math.max(0, d.cooldown - 60); designChanged(act); }
+    else if (act === 'cool-plus') { d.cooldown = Math.min(600, d.cooldown + 60); designChanged(act); }
+    else if (act === 'box-minus' || act === 'box-plus') {
+      const i = Math.max(0, BOX_EVERY.indexOf(d.boxEvery)) + (act === 'box-plus' ? 1 : -1);
+      d.boxEvery = BOX_EVERY[Math.max(0, Math.min(BOX_EVERY.length - 1, i))]; designChanged(act);
+    }
+    else if (act === 'pause') { d.pause = !d.pause; designChanged(act); }
+    else if (act === 'pause-minus') { d.pauseAt = Math.max(3, d.pauseAt - 1); designChanged(act); }
+    else if (act === 'pause-plus') { d.pauseAt = Math.min(20, d.pauseAt + 1); designChanged(act); }
+    else if (act === 'case') { d.caseSize = d.caseSize > 0 ? 0 : LEVELS[state.level].caseDefault; designChanged(act); }
+    else if (act === 'case-minus') { d.caseSize = Math.max(2, d.caseSize - 2); designChanged(act); }
+    else if (act === 'case-plus') { d.caseSize = Math.min(20, d.caseSize + 2); designChanged(act); }
     else if (act === 'guess') {
       const g = Number(b.dataset.guess);
       state.guesses[state.level] = state.guesses[state.level] === g ? null : g; // Tap again to take it back.
@@ -1466,6 +1561,7 @@ ${batchFacts(s)}
   tagsEl.addEventListener('change', ev => {
     if (state.phase === 'run') return;
     if (ev.target.name === 'policy') { leaveDebrief(); state.designs[state.level].policy = ev.target.value; designChanged('policy'); }
+    if (ev.target.name === 'boxRule') { leaveDebrief(); state.designs[state.level].boxRule = ev.target.value; designChanged('boxRule'); }
     if (ev.target.name === 'capacity') sound.play('tick');
   });
   // The rail size slides without redrawing the tags, so the drag isn't interrupted.
@@ -1697,10 +1793,34 @@ ${batchFacts(s)}
     fpsEl.textContent = `${Math.round(fpsLog.frames * 1000 / (now - fpsLog.since))} fps · slowest draw ${Math.round(fpsLog.worst)} ms`;
     fpsLog.frames = 0; fpsLog.worst = 0; fpsLog.since = now;
   }
+  // A choppy rush on a phone is usually a power-saving mode, not the game: iPhones in Low
+  // Power Mode cap web animation at 30 frames a second. If a rush runs under 40 for a few
+  // seconds, a small note says so, once per visit.
+  const slow = { frames: 0, since: 0, windows: 0, shown: !hasPanel || !document.body }; // Real pages only.
+  function watchSpeed(now) {
+    if (slow.shown) return;
+    if (!(state.phase === 'run' && state.playing) || moment || document.hidden) { slow.frames = 0; slow.since = now; return; }
+    slow.frames++;
+    if (now - slow.since < 2000) return;
+    const fps = (slow.frames * 1000) / (now - slow.since);
+    slow.windows = fps < 40 ? slow.windows + 1 : 0;
+    slow.frames = 0; slow.since = now;
+    if (slow.windows < 2) return;
+    slow.shown = true;
+    const note = document.createElement('div');
+    note.className = 'perf-note';
+    note.setAttribute('role', 'status');
+    note.innerHTML = '<span>Looks choppy? <b>Low Power Mode</b> limits animation to 30 fps. Turn it off for a smoother rush.</span><button type="button" aria-label="Dismiss">×</button>';
+    note.querySelector('button').addEventListener('click', () => note.remove());
+    byId('scene').append(note);
+    setTimeout(() => note.remove(), 12000);
+  }
+
   function frame(now) {
     const dt = Math.min(0.05, (now - lastFrame) / 1000);
     lastFrame = now;
     const run = state.run;
+    watchSpeed(now);
     if (state.phase === 'run' && state.playing && !run.finished) {
       run.t += dt * 60 * state.speed; // Keeps going after the last drink, while app customers arrive to collect.
       sample(run);
@@ -1708,6 +1828,7 @@ ${batchFacts(s)}
       if (run.rail.length) trigger('queued', { ticket: run.rail[0], at: slotSpot(0), track: ticketSpot(run.rail[0]) });
       const holder = run.baristas.find(b => b.holding);
       if (holder) trigger('hold', { b: holder, ticket: holder.ticket });
+      if (run.design.caseSize > 0 && run.caseStock === 0) trigger('caseEmpty', {});
     }
     updateVisuals(run, state.phase === 'run' && !state.playing && !moment ? 0 : dt);
     placeSpot();

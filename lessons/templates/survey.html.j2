@@ -1,0 +1,32 @@
+{% extends "base.html.j2" %}
+{% block title %}Help decide what's next · Rush Hour{% endblock %}
+{% block description %}Six quick questions: did Rush Hour help you understand system design, and should it keep going?{% endblock %}
+{% block body_class %}survey-page{% endblock %}
+{% block body %}
+<main class="wrap survey">
+  <div class="section-head">
+    <p class="stub">Your turn</p>
+    <h1>Help decide what's next</h1>
+    <p>You've played the first two groups: the flow and the rush. Lessons 9 to 12 (idempotency, retries, health checks, and graceful degradation) aren't built yet. Six quick questions decide whether they get built, and what comes first.</p>
+  </div>
+  {% if course.survey_url %}
+  <div class="survey-form">
+    <iframe src="{{ course.survey_url }}{{ '&' if '?' in course.survey_url else '?' }}embedded=true" title="Rush Hour survey" loading="lazy">Loading the survey…</iframe>
+  </div>
+  <p class="quiet">The form doesn't load? <a href="{{ course.survey_url }}">Open it in a new tab</a>.</p>
+  {% else %}
+  <div class="tickets"><div class="ticket survey-questions">
+    <div class="ticket-head"><span>The questions</span><span>The form opens here soon</span></div>
+    <ol>
+      <li>Did Rush Hour help you understand system design? (1 to 5)</li>
+      <li>Which lesson taught you the most?</li>
+      <li>What was confusing?</li>
+      <li>Should the course keep going? (Yes, maybe, no) Which topics next?</li>
+      <li>Who are you: a student, a career switcher, an engineer, or something else?</li>
+      <li>Your email, if you'd like to hear about new lessons (optional)</li>
+    </ol>
+  </div></div>
+  {% endif %}
+  <p><a class="btn-quiet" href="menu.html">Back to the menu</a></p>
+</main>
+{% endblock %}

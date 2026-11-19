@@ -7,17 +7,24 @@
 //   { kind: 'answer', limit: 2 }                   longest time to an answer at the register
 //   { kind: 'atMost', of: 'rejected', limit: 25 }  a count that must stay at or under a limit
 //   { kind: 'atMost', of: 'steams', limit: 9 }
+//   { kind: 'atMost', of: 'labor', limit: 45 }      labor cost so far, in dollars (lesson 5)
+//   { kind: 'atMost', of: 'refusedBoxes' or 'appRefused', limit }  lessons 6 and 7
 //   { kind: 'serveAll' }                           nobody turned away
 //
 // Statuses: 'ok' (on track), 'risk' (75% of the way to the limit), 'missed' (can no longer
 // be met), and at the end of the rush 'met'. A goal never comes back from 'missed'.
 
+import { laborCost } from '../engine.mjs';
+
 export const RISK_AT = 0.75;
 
-const COUNT_LABELS = { rejected: 'turned away', steams: 'pitchers' };
+const COUNT_LABELS = { rejected: 'turned away', steams: 'pitchers', refusedBoxes: 'boxes refused', appRefused: 'app orders refused' };
 const SHORT = {
   rejected: limit => `Turned away ≤ ${limit}`,
   steams: limit => `Pitchers ≤ ${limit}`,
+  labor: limit => `Labor ≤ $${limit}`,
+  refusedBoxes: limit => `Boxes refused ≤ ${limit}`,
+  appRefused: limit => `App refused ≤ ${limit}`,
 };
 
 /** A short label for the strip under the shop: "Wait ≤ 40 min". */
@@ -37,11 +44,13 @@ export function shortLabel(live) {
 function waitingSoFar(run, channel) {
   const design = run.design;
   const lineIsSafe = design.rail && !Number.isFinite(design.capacity);
+  // A box of coffee can still be refused at the register (lesson 6).
+  const boxesSafe = !design.boxRule || design.boxRule === 'all';
   let longest = 0;
   for (const c of run.customers) {
     if (channel && c.channel !== channel) continue;
     const ordered = c.state === 'waiting';
-    const inLine = (c.state === 'queue' || c.state === 'ordering') && lineIsSafe;
+    const inLine = (c.state === 'queue' || c.state === 'ordering') && lineIsSafe && (boxesSafe || !run.menu[c.item].box);
     if (!ordered && !inLine) continue;
     const from = c.channel === 'mobile' ? c.orderedAt : c.arriveAt;
     longest = Math.max(longest, run.t - from);
@@ -89,6 +98,11 @@ export function liveGoal(live, run, finished = false) {
   if (live.kind === 'answer') {
     const minutes = Math.max(answeredLongest(run), finished ? 0 : unansweredSoFar(run)) / 60;
     return { status: judge(minutes, live.limit), fill: meter(minutes, live.limit), mark: MARK, text: minutesText(minutes, live.limit) };
+  }
+  if (live.kind === 'atMost' && live.of === 'labor') {
+    // Labor only grows, so a goal over its limit can never come back.
+    const value = laborCost(run, finished ? run.lastEventT : run.t);
+    return { status: judge(value, live.limit), fill: meter(value, live.limit), mark: MARK, text: `$${value.toFixed(0)} / $${live.limit} labor` };
   }
   if (live.kind === 'atMost') {
     const value = run[live.of];

@@ -9,9 +9,13 @@ import * as lesson1 from '../src/lessons/lesson1.mjs';
 import * as lesson2 from '../src/lessons/lesson2.mjs';
 import * as lesson3 from '../src/lessons/lesson3.mjs';
 import * as lesson4 from '../src/lessons/lesson4.mjs';
+import * as lesson5 from '../src/lessons/lesson5.mjs';
+import * as lesson6 from '../src/lessons/lesson6.mjs';
+import * as lesson7 from '../src/lessons/lesson7.mjs';
+import * as lesson8 from '../src/lessons/lesson8.mjs';
 import { config } from './helpers.mjs';
 
-const LESSONS = [lesson1, lesson2, lesson3, lesson4];
+const LESSONS = [lesson1, lesson2, lesson3, lesson4, lesson5, lesson6, lesson7, lesson8];
 
 // The level's starting design, plus a spread of designs a player might try.
 function designsFor(level) {
@@ -25,6 +29,10 @@ function designsFor(level) {
     if (base.policy) for (const policy of ['fifo', 'walkin', 'mobile', 'weighted']) out.push({ ...base, baristas, policy, batch: true });
     if (level.capacityUnlocked) for (const capacity of [5, 15, 30, 50]) out.push({ ...base, baristas, rail: true, capacity });
     if ('batchWait' in base) for (const batchWait of [0, 120, 240, 360]) out.push({ ...base, baristas, batchWait });
+    if ('autoscale' in base) for (const scaleAt of [1, 3]) for (const cooldown of [0, 180, 600]) out.push({ ...base, baristas, autoscale: true, scaleAt, cooldown });
+    if ('boxRule' in base) for (const boxRule of ['all', 'none', 'bucket']) out.push({ ...base, baristas, boxRule });
+    if ('pause' in base) for (const pauseAt of [3, 10, 20]) out.push({ ...base, baristas, pause: true, pauseAt });
+    if ('caseSize' in base) for (const caseSize of [0, 6, 16]) out.push({ ...base, baristas, caseSize });
   }
   return out;
 }

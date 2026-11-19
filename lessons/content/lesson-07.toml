@@ -1,0 +1,9 @@
+# Lesson 7's page. Levels, goals and debrief text live in web/src/lessons/lesson7.mjs.
+slug = "pause-mobile"
+module = "lesson7.mjs"
+levels = 2
+eyebrow = "Group B · The rush · Lesson 7 of 12"
+heading = "Line out the door, pause mobile orders"
+description = "The app keeps taking orders the bar can't make in time. Pause it when the line is long, and no sooner: backpressure."
+lede = "The app doesn't know the line is out the door. It takes every order and promises a drink in minutes. Decide when the app should say \"ordering paused\"."
+foot = "The rush runs on an event-based simulation: every order, ticket and drink happens at an exact time, so the same design always gives the same result. The shop's queues and workers are the same ones that run on the Rush Hour Kubernetes cluster."

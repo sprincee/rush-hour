@@ -9,6 +9,10 @@ import * as lesson1 from '../src/lessons/lesson1.mjs';
 import * as lesson2 from '../src/lessons/lesson2.mjs';
 import * as lesson3 from '../src/lessons/lesson3.mjs';
 import * as lesson4 from '../src/lessons/lesson4.mjs';
+import * as lesson5 from '../src/lessons/lesson5.mjs';
+import * as lesson6 from '../src/lessons/lesson6.mjs';
+import * as lesson7 from '../src/lessons/lesson7.mjs';
+import * as lesson8 from '../src/lessons/lesson8.mjs';
 import { config, run } from './helpers.mjs';
 
 // A 2D context that accepts every call and returns harmless values.
@@ -58,6 +62,7 @@ function fakePage({ only } = {}) {
     act: name => fire('panel', 'click', button({ act: name })),
     guess: i => fire('panel', 'click', button({ act: 'guess', guess: String(i) })),
     choosePolicy: value => fire('shop-tags', 'change', { name: 'policy', value }),
+    chooseOn: (name, value) => fire('shop-tags', 'change', { name, value }),
     // Steppers: step all the way down, then up to the value.
     setEvery: n => {
       for (let i = 0; i < 6; i++) fire('panel', 'click', button({ act: 'every-minus' }));
@@ -471,4 +476,57 @@ test('every lesson shows its levers as tags on the shop', () => {
   page.clickLevel(1);
   page.choosePolicy('weighted');
   assert.ok(page.elements['shop-tags'].innerHTML.includes('data-ctl="every"'), 'fair share adds the every-Nth tag');
+});
+
+test('Group B: every level of lessons 5-8 plays to a debrief, from the start and a winning design', () => {
+  const times = (p, act, n) => { for (let i = 0; i < n; i++) p.act(act); };
+  // How to win each level with only that level's own tags.
+  const winning = {
+    '5.1': { changes: p => { p.act('autoscale'); p.act('minus'); }, design: { autoscale: true, baristas: 1 } },
+    '5.2': { changes: p => { p.act('plus'); times(p, 'scale-minus', 2); }, design: { baristas: 2, scaleAt: 1 } },
+    '5.3': { changes: p => times(p, 'cool-plus', 3), design: { cooldown: 180 } },
+    '6.1': { changes: p => p.chooseOn('boxRule', 'none'), design: { boxRule: 'none' } },
+    '6.2': { changes: p => p.chooseOn('boxRule', 'bucket'), design: { boxRule: 'bucket' } },
+    '7.1': { changes: p => p.act('pause'), design: { pause: true } },
+    '7.2': { changes: p => times(p, 'pause-plus', 6), design: { pauseAt: 10 } },
+    '8.1': { changes: p => p.act('case'), design: { caseSize: 12 } },
+    '8.2': { changes: p => times(p, 'case-plus', 4), design: { caseSize: 16 } },
+  };
+  for (const lesson of [lesson5, lesson6, lesson7, lesson8]) {
+    for (const [i, level] of lesson.LEVELS.entries()) {
+      for (const variant of ['start', 'winning']) {
+        const page = fakePage();
+        startGame({ config, lesson });
+        const w = winning[level.id];
+        const html = playLevel(page, i, variant === 'winning' ? w.changes : undefined);
+        const design = variant === 'winning' ? { ...level.start, ...w.design } : level.start;
+        const passed = lesson.evaluate(level, design, summarize(run(design, { rush: level.rush }))).passed;
+        assert.equal(verdict(html), passed ? 'pass' : 'fail', `level ${level.id}, ${variant}`);
+        assert.equal(passed, variant === 'winning', `level ${level.id}: the ${variant} design should ${variant === 'winning' ? 'pass' : 'fail'}`);
+      }
+    }
+  }
+});
+
+test('Group B: briefs, moments, and the tags each level shows', () => {
+  const expect = {
+    '5.1': ['baristas', 'autoscale'], '5.3': ['crew', 'cooldown'], '6.1': ['crew', 'boxRule'], '7.2': ['crew', 'pause', 'pauseAt'], '8.2': ['crew', 'caseSize'],
+  };
+  for (const lesson of [lesson5, lesson6, lesson7, lesson8]) {
+    const ids = lesson.MOMENTS.map(m => m.id);
+    assert.equal(new Set(ids).size, ids.length, 'moment ids are unique');
+    const page = fakePage();
+    startGame({ config, lesson });
+    lesson.LEVELS.forEach((lv, i) => {
+      assert.equal(lv.intro.length, i === 0 ? 3 : 1, `${lv.id}: brief cards`);
+      page.clickLevel(i);
+      const ctls = [...page.elements['shop-tags'].innerHTML.matchAll(/data-ctl="(\w+)"/g)].map(m => m[1]);
+      if (expect[lv.id]) assert.deepEqual(ctls, expect[lv.id], lv.id);
+    });
+  }
+  // Lesson 5 is paid by the minute: no budget anywhere.
+  const page = fakePage();
+  startGame({ config, lesson: lesson5 });
+  assert.ok(page.elements.panel.innerHTML.includes('PAID BY THE MINUTE') && !page.elements.panel.innerHTML.includes('$Infinity'));
+  assert.ok(page.elements.setup.innerHTML.includes('by the minute'));
 });

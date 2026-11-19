@@ -43,11 +43,11 @@
         <a class="btn-primary" href="{{ next.page }}.html">Play lesson {{ next.number }} <span class="arrow">→</span></a>
         {% else %}
         <div>
-          <p class="stub">Up next</p>
-          <p class="item">More lessons are on the way.</p>
-          <p class="quiet">Group B, the rush, starts with calling in more baristas.</p>
+          <p class="stub">Your turn</p>
+          <p class="item">Help decide what's next</p>
+          <p class="quiet">Six quick questions: did this help, and should the course keep going?</p>
         </div>
-        <a class="btn-quiet" href="menu.html">See the menu</a>
+        <a class="btn-primary" href="survey.html">Take the survey <span class="arrow">→</span></a>
         {% endif %}
       </div>
     </div>
@@ -63,7 +63,7 @@
     startGame({
       config: await response.json(),
       lesson,
-      {% if next %}next: { href: '{{ next.page }}.html', title: {{ next.heading | tojson }} },{% endif %}
+      {% if next %}next: { href: '{{ next.page }}.html', title: {{ next.heading | tojson }} },{% else %}next: { href: 'survey.html', title: "Help decide what's next", label: 'Help decide what\'s next' },{% endif %}
     });
   } catch (err) {
     document.getElementById('caption').textContent = `The shop couldn't open: ${err.message}. Try reloading the page.`;

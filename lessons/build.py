@@ -102,6 +102,7 @@ def build(out: Path, fragment: bool) -> list[Path]:
     render("index.html.j2", "index.html", "home", playable=playable, total_levels=total_levels)
     render("menu.html.j2", "menu.html", "menu", playable=playable)
     render("about.html.j2", "about.html", "about")
+    render("survey.html.j2", "survey.html", "survey")
 
     for i, entry in enumerate(playable):
         lesson = lessons[entry["page"]]

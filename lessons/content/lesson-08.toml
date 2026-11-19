@@ -1,0 +1,9 @@
+# Lesson 8's page. Levels, goals and debrief text live in web/src/lessons/lesson8.mjs.
+slug = "pastry-case"
+module = "lesson8.mjs"
+levels = 2
+eyebrow = "Group B · The rush · Lesson 8 of 12"
+heading = "The pastry case"
+description = "Half the customers only want a croissant. Serve them from a pastry case instead of the bar, then pick the case size: caching."
+lede = "Half the morning's customers just want a croissant, and every one goes to the bar. Fill a pastry case by the register, and decide how big it should be."
+foot = "The rush runs on an event-based simulation: every order, ticket and drink happens at an exact time, so the same design always gives the same result. The shop's queues and workers are the same ones that run on the Rush Hour Kubernetes cluster."

@@ -36,6 +36,17 @@ export const POLICIES = {
  *     (a batch window). 0 means only batch tickets that are already waiting.
  *   sync: the cashier waits at the bar until each drink is made before taking the
  *     next order (a synchronous call). false means "we'll call your name" (async).
+ *   Group B (lessons 5-8), all off by default:
+ *   autoscale, scaleAt: call in another barista when the tickets waiting pass scaleAt
+ *     per barista. baristas is then the minimum crew; maxCrew the most (up to 4).
+ *     scaleDelay: shop seconds a called barista takes to arrive. cooldown: shop seconds
+ *     a barista stays idle before going home. Labor is paid by the minute, with a
+ *     minimum shift per call-in (config.labor).
+ *   boxRule: 'all', 'none', or 'bucket' (a token bucket: one box of coffee per
+ *     boxEvery shop seconds). A refused box is turned away (429).
+ *   pause, pauseAt: backpressure. App orders are refused while the rails hold pauseAt tickets.
+ *   caseSize: a pastry case. Grab-and-go orders are served at the register while it's
+ *     stocked (a cache hit); otherwise a barista fetches one (a miss). Idle baristas restock it.
  * @param {{config: object, rush?: string, look?: Function}} options
  *   config is shop/config.json, rush names one of its rushes. look(customer, rand)
  *   lets the game add visual details. It gets its own random sequence, so it can
@@ -45,7 +56,11 @@ export function createRun(design, { config, rush = 'lesson-2', look, jitter } = 
   if (!config) throw new Error('createRun needs the shop config');
   const settings = config.rushes[rush];
   if (!settings) throw new Error(`shop config has no rush named ${rush}`);
-  design = { policy: 'fifo', mobileEvery: 3, capacity: Infinity, batch: false, batchWait: 0, sync: false, ...design };
+  design = {
+    policy: 'fifo', mobileEvery: 3, capacity: Infinity, batch: false, batchWait: 0, sync: false,
+    autoscale: false, scaleAt: 2, maxCrew: 4, scaleDelay: 0, cooldown: 180, boxRule: 'all', boxEvery: 300, pause: false, pauseAt: 10, caseSize: 0,
+    ...design,
+  };
   if (!(design.policy in POLICIES)) throw new Error(`unknown policy ${design.policy}`);
 
   const menu = menuById(config);
@@ -68,7 +83,14 @@ export function createRun(design, { config, rush = 'lesson-2', look, jitter } = 
     rail: [], mobileRail: [],
     // ticket: the drink in hand. partner: a second latte sharing the pitcher.
     // holding: waiting by the steamer for a second latte (a batch window).
-    baristas: Array.from({ length: design.baristas }, (_, i) => ({ i, ticket: null, partner: null, holding: false, holdUntil: 0, reserved: null, startAt: 0, doneAt: 0, busyTime: 0, sinceMobile: 0 })),
+    // With autoscaling, the array holds every possible barista; onShift says who's working.
+    baristas: Array.from({ length: design.autoscale ? Math.max(design.maxCrew, design.baristas) : design.baristas }, (_, i) => ({
+      i, ticket: null, partner: null, holding: false, holdUntil: 0, reserved: null, startAt: 0, doneAt: 0, busyTime: 0, sinceMobile: 0,
+      onShift: i < design.baristas, arriving: false, clockIn: 0, paidSeconds: 0, idleSince: 0,
+    })),
+    labor: { perSecond: (config.labor?.perHour ?? 18) / 3600, minShift: config.labor?.minShiftSeconds ?? 900 },
+    callIns: 0, peakCrew: design.baristas, refusedBoxes: 0, appRefused: 0, boxTokens: 1, boxTokensAt: 0,
+    caseStock: design.caseSize, caseHits: 0, caseMisses: 0, restocks: 0,
     cups: [], pops: [], served: 0, rejected: 0, longestWait: 0, steams: 0, batches: 0,
     maxBusy: 0, // The most baristas making drinks at the same moment.
     byChannel: { walkin: { served: 0, rejected: 0, longestWait: 0 }, mobile: { served: 0, rejected: 0, longestWait: 0 } },
@@ -78,6 +100,9 @@ export function createRun(design, { config, rush = 'lesson-2', look, jitter } = 
   customers.forEach(c => schedule(run, c.arriveAt, c.channel === 'mobile' ? 'appOrder' : 'arrive', c));
   return run;
 }
+
+// Events that only tidy up (a barista going home) don't extend the rush's end time.
+const QUIET = new Set(['goHome']);
 
 function schedule(run, t, type, data) {
   const e = { t, type, data };
@@ -89,7 +114,7 @@ function schedule(run, t, type, data) {
 export function processEvents(run, onEvent) {
   while (run.events.length && run.events[0].t <= run.t) {
     const e = run.events.shift();
-    run.lastEventT = e.t;
+    if (!QUIET.has(e.type)) run.lastEventT = e.t;
     handle(run, e, onEvent);
   }
 }
@@ -104,15 +129,35 @@ function handle(run, e, onEvent) {
   } else if (e.type === 'appOrder') {
     // App orders skip the register and print straight onto the app rail.
     const c = e.data;
+    if (run.design.pause && run.rail.length + run.mobileRail.length >= run.design.pauseAt) {
+      // Backpressure: the app says "ordering paused" instead of taking an order it'll be late on.
+      reject(run, c, 'paused', onEvent);
+      c.state = 'gone'; // They never come in.
+      return;
+    }
     c.state = 'waiting'; c.orderedAt = t;
     const ticket = { id: c.id, c, item: c.item, channel: 'mobile', t };
     run.mobileRail.push(ticket);
     if (onEvent) onEvent('accepted', c, ticket);
     tryBaristas(run, t);
+    autoscale(run, t);
   } else if (e.type === 'ordered') {
     const c = e.data;
     run.ordering = null; c.state = 'waiting'; c.orderedAt = t;
     const ticket = { id: c.id, c, item: c.item, channel: 'walkin', t };
+    if (run.menu[c.item].grab && run.caseStock > 0) {
+      // A cache hit: the cashier hands it over from the case. No ticket, no barista.
+      run.caseStock--; run.caseHits++;
+      const reserved = run.baristas.find(x => x.reserved === c);
+      if (reserved) reserved.reserved = null;
+      c.answeredAt = t;
+      if (onEvent) onEvent('accepted', c, ticket);
+      serve(run, c, t, onEvent, { fromCase: true });
+      tryBaristas(run, t);
+      tryRegister(run, t, onEvent);
+      return;
+    }
+    if (run.menu[c.item].grab && run.design.caseSize > 0) run.caseMisses++;
     // Async: the customer has their answer (a ticket) now. Sync: only once the drink is made.
     if (run.design.sync) run.blockedBy = ticket; else c.answeredAt = t;
     if (!run.design.rail) {
@@ -126,6 +171,7 @@ function handle(run, e, onEvent) {
     }
     if (onEvent) onEvent('accepted', c, ticket);
     tryRegister(run, t, onEvent);
+    autoscale(run, t);
   } else if (e.type === 'holdTimeout') {
     // No second latte came in time: steam for one.
     const b = e.data;
@@ -136,35 +182,107 @@ function handle(run, e, onEvent) {
     // A batch finishes both drinks together.
     for (const ticket of [b.ticket, b.partner]) {
       if (!ticket) continue;
+      if (ticket.restock) { run.caseStock = run.design.caseSize; run.restocks++; continue; }
       const c = ticket.c;
-      c.state = 'pickup'; c.readyAt = t;
       if (c.answeredAt === undefined) c.answeredAt = t; // App orders, and sync orders: answered with the drink.
       if (run.blockedBy === ticket) run.blockedBy = null; // The cashier can take the next order.
-      // Walk-ins wait from walking in; app customers from placing the order.
-      const wait = t - (c.channel === 'mobile' ? c.orderedAt : c.arriveAt);
-      const ch = run.byChannel[c.channel];
-      ch.served++; ch.longestWait = Math.max(ch.longestWait, wait);
-      run.served++;
-      run.longestWait = Math.max(run.longestWait, wait);
-      if (onEvent) onEvent('done', c, b);
+      serve(run, c, t, onEvent, b);
     }
     b.ticket = null; b.partner = null;
     tryBaristas(run, t);
     tryRegister(run, t, onEvent);
+    if (!b.ticket && run.design.autoscale) { b.idleSince = t; maybeGoHome(run, b, t); }
+  } else if (e.type === 'clockIn') {
+    const b = e.data;
+    b.arriving = false; b.onShift = true; b.clockIn = t; b.idleSince = t;
+    run.peakCrew = Math.max(run.peakCrew, onShift(run));
+    if (onEvent) onEvent('clockIn', null, b);
+    tryBaristas(run, t);
+    if (!b.ticket) maybeGoHome(run, b, t);
+  } else if (e.type === 'goHome') {
+    const b = e.data;
+    if (b.onShift && !b.ticket && !b.holding && b.idleSince === e.idle && onShift(run) > run.design.baristas) {
+      clockOut(run, b, t);
+      if (onEvent) onEvent('clockOut', null, b);
+    }
   }
+}
+
+function serve(run, c, t, onEvent, by) {
+  c.state = 'pickup'; c.readyAt = t;
+  // Walk-ins wait from walking in; app customers from placing the order.
+  const wait = t - (c.channel === 'mobile' ? c.orderedAt : c.arriveAt);
+  const ch = run.byChannel[c.channel];
+  ch.served++; ch.longestWait = Math.max(ch.longestWait, wait);
+  run.served++;
+  run.longestWait = Math.max(run.longestWait, wait);
+  if (onEvent) onEvent('done', c, by);
+}
+
+// ---------- Autoscaling (lesson 5) ----------
+const onShift = run => run.baristas.filter(b => b.onShift).length;
+const waitingTickets = run => run.rail.length + run.mobileRail.length;
+// Anyone still to come: not yet arrived, in the register line, or ordering.
+const moreComing = run => run.regQueue.length > 0 || !!run.ordering || run.customers.some(c => c.state === 'outside');
+
+/** Call in one more barista when the tickets per barista pass the threshold. */
+function autoscale(run, t) {
+  if (!run.design.autoscale) return;
+  const crew = run.baristas.filter(b => b.onShift || b.arriving).length;
+  if (waitingTickets(run) <= run.design.scaleAt * crew) return;
+  const b = run.baristas.find(x => !x.onShift && !x.arriving);
+  if (!b) return; // Already at the most baristas allowed.
+  b.arriving = true; run.callIns++;
+  schedule(run, t + run.design.scaleDelay, 'clockIn', b);
+}
+
+// An idle barista above the minimum goes home after the cooldown, if still idle then.
+// At the end of the day nobody needs sending home: they clock out when the rush ends.
+function maybeGoHome(run, b, t) {
+  if (onShift(run) <= run.design.baristas || waitingTickets(run) > 0) return;
+  if (!moreComing(run)) return;
+  schedule(run, t + run.design.cooldown, 'goHome', b);
+  run.events.find(x => x.type === 'goHome' && x.data === b && x.t === t + run.design.cooldown).idle = b.idleSince;
+}
+
+// Paid for time on the clock, but at least the minimum shift for each call-in.
+function clockOut(run, b, t) {
+  const worked = t - b.clockIn;
+  b.paidSeconds += b.i < run.design.baristas && b.clockIn === 0 ? worked : Math.max(worked, run.labor.minShift);
+  b.onShift = false; b.idleSince = 0;
+}
+
+/** Labor cost so far, in dollars: every shift that has ended, plus everyone on the clock now. */
+export function laborCost(run, at = run.t) {
+  // Once only tidy-up events are left, the day is over: nobody is paid past closing.
+  const workLeft = run.events.some(e => !QUIET.has(e.type));
+  if (!workLeft) at = Math.min(at, run.lastEventT);
+  let seconds = 0;
+  for (const b of run.baristas) {
+    seconds += b.paidSeconds;
+    if (!b.onShift) continue;
+    const worked = Math.max(0, at - b.clockIn);
+    const original = b.i < run.design.baristas && b.clockIn === 0;
+    // A called-in shift still running is paid at least the minimum once the day ends.
+    seconds += original ? worked : Math.max(worked, workLeft ? 0 : run.labor.minShift);
+  }
+  return seconds * run.labor.perSecond;
 }
 
 function reject(run, c, why, onEvent) {
   c.state = 'walkout'; c.rejectedFor = why;
   run.rejected++; run.byChannel[c.channel].rejected++;
+  if (why === 'limited') run.refusedBoxes++;
+  if (why === 'paused') run.appRefused++;
   if (onEvent) onEvent('rejected', c, why);
 }
 
 function tryRegister(run, t, onEvent) {
   while (!run.ordering && !run.blockedBy && run.regQueue.length) {
     const c = run.regQueue.shift();
+    if (run.menu[c.item].box && !boxAllowed(run, t)) { reject(run, c, 'limited', onEvent); continue; }
     if (!run.design.rail) {
-      const free = run.baristas.find(b => !b.ticket && !b.reserved);
+      const free = run.baristas.find(b => b.onShift && !b.ticket && !b.reserved);
       if (!free) { reject(run, c, 'noqueue', onEvent); continue; }
       free.reserved = c;
     } else if (run.rail.length >= run.design.capacity) {
@@ -173,6 +291,19 @@ function tryRegister(run, t, onEvent) {
     c.state = 'ordering'; run.ordering = c; run.cashierFrom = t;
     schedule(run, t + run.shop.orderSeconds, 'ordered', c);
   }
+}
+
+/** Rate limiting (lesson 6): may the cashier take this box of coffee now? */
+function boxAllowed(run, t) {
+  const rule = run.design.boxRule;
+  if (rule === 'all') return true;
+  if (rule === 'none') return false;
+  // A token bucket holding one token, refilled one token per boxEvery seconds.
+  run.boxTokens = Math.min(1, run.boxTokens + (t - run.boxTokensAt) / run.design.boxEvery);
+  run.boxTokensAt = t;
+  if (run.boxTokens < 1) return false;
+  run.boxTokens -= 1;
+  return true;
 }
 
 /** Which rail a free barista takes from. Each barista keeps its own count for 'weighted'. */
@@ -217,7 +348,7 @@ function tryBaristas(run, t) {
     startDrink(run, b, b.ticket, partner, t);
   }
   for (const b of run.baristas) {
-    if (b.holding || b.ticket || b.reserved) continue;
+    if (!b.onShift || b.holding || b.ticket || b.reserved) continue;
     const ticket = nextTicket(run, b);
     if (!ticket) continue;
     if (run.design.batch && batchable(run, ticket)) {
@@ -231,6 +362,12 @@ function tryBaristas(run, t) {
     }
     startDrink(run, b, ticket, null, t);
   }
+  // Nothing waiting and the pastry case isn't full: one idle barista restocks it.
+  const restocking = run.baristas.some(b => b.ticket?.restock);
+  if (run.design.caseSize > 0 && run.caseStock < run.design.caseSize && !restocking && waitingTickets(run) === 0) {
+    const b = run.baristas.find(x => x.onShift && !x.ticket && !x.holding && !x.reserved);
+    if (b) startDrink(run, b, { id: 0, item: 'restock', restock: true, t }, null, t);
+  }
 }
 
 function startDrink(run, b, ticket, partner, t) {
@@ -239,6 +376,7 @@ function startDrink(run, b, ticket, partner, t) {
   if (run.menu[ticket.item].batchable) run.steams++;
   if (partner) run.batches++;
   run.maxBusy = Math.max(run.maxBusy, run.baristas.filter(x => x.ticket && !x.holding).length);
+  b.idleSince = 0;
   schedule(run, b.doneAt, 'drinkDone', b);
 }
 
@@ -270,6 +408,7 @@ export function completeRun(design, options) {
 /** The numbers a debrief needs. Times are in shop minutes. */
 export function summarize(run) {
   const busy = run.baristas.reduce((s, b) => s + b.busyTime, 0);
+  const crew = Math.max(1, run.design.baristas);
   const end = Math.max(run.lastEventT, 1);
   const channel = ch => ({ served: ch.served, rejected: ch.rejected, longestWaitMin: ch.longestWait / 60 });
   // Time to an answer: from walking in until the register answers, with a ticket
@@ -281,13 +420,20 @@ export function summarize(run) {
     rejected: run.rejected,
     longestWaitMin: run.longestWait / 60,
     endMin: end / 60,
-    utilization: busy / (end * run.baristas.length),
+    utilization: busy / (end * (run.design.autoscale ? crew : run.baristas.length)),
     peakQueue: Math.max(...run.series.map(p => p[1])),
     peakMobileQueue: Math.max(...run.series.map(p => p[2])),
     longestAnswerMin: longestAnswer / 60,
     steams: run.steams, // Pitchers of milk steamed: one per latte, or one per batch of two.
     batches: run.batches,
     maxBusy: run.maxBusy,
+    labor: laborCost(run, end), // Dollars, paid by the minute (lesson 5).
+    callIns: run.callIns,
+    peakCrew: run.peakCrew,
+    refusedBoxes: run.refusedBoxes,
+    boxesServed: run.customers.filter(c => run.menu[c.item].box && c.state !== 'walkout' && c.readyAt > 0).length,
+    appRefused: run.appRefused,
+    caseHits: run.caseHits, caseMisses: run.caseMisses, restocks: run.restocks,
     walkin: channel(run.byChannel.walkin),
     mobile: channel(run.byChannel.mobile),
   };
